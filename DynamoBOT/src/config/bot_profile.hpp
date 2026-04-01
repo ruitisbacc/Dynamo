@@ -1,7 +1,7 @@
 #pragma once
 
-#include "../bot/bot_config.hpp"
-#include "../bot/npc_database.hpp"
+#include "bot/core/bot_config.hpp"
+#include "bot/support/npc_database.hpp"
 
 #include <algorithm>
 #include <array>

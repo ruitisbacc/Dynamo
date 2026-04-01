@@ -7,12 +7,12 @@
  * Collects bonus, cargo, and green boxes from the map.
  */
 
-#include "module.hpp"
-#include "bot_config.hpp"
-#include "collection_helpers.hpp"
-#include "npc_database.hpp"
-#include "movement_controller.hpp"
-#include "../game/game_engine.hpp"
+#include "bot/core/module.hpp"
+#include "bot/core/bot_config.hpp"
+#include "bot/support/collection_helpers.hpp"
+#include "bot/support/npc_database.hpp"
+#include "bot/support/movement_controller.hpp"
+#include "game/game_engine.hpp"
 
 #include <algorithm>
 #include <cmath>

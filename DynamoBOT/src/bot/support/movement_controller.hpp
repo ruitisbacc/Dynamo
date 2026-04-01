@@ -8,9 +8,9 @@
  * bounded waypoint routes with lightweight replanning.
  */
 
-#include "module.hpp"
-#include "navigation.hpp"
-#include "../game/game_engine.hpp"
+#include "bot/core/module.hpp"
+#include "bot/support/navigation.hpp"
+#include "game/game_engine.hpp"
 
 #include <algorithm>
 #include <cmath>

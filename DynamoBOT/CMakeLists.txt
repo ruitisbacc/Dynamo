@@ -68,10 +68,10 @@ endif()
 set(DYNAMO_BACKEND_SOURCES
     src/core/config.cpp
     src/config/config_service.cpp
-    src/network/http_client.cpp
-    src/network/kryo_serializer.cpp
-    src/network/kryo_client.cpp
-    src/network/packet_registry.cpp
+    src/network/clients/http_client.cpp
+    src/network/codec/kryo_serializer.cpp
+    src/network/clients/kryo_client.cpp
+    src/network/registry/packet_registry.cpp
     src/packets/auth_packets.cpp
     src/packets/api_packets.cpp
     src/game/game_engine.cpp
@@ -106,9 +106,9 @@ endif()
 
 if(DYNAMO_BUILD_BACKEND_HOST)
     set(DYNAMO_HOST_SOURCES
-        src/host/main.cpp
-        src/host/backend_host.cpp
-        src/host/ipc_pipe_server.cpp
+        src/host/app/main.cpp
+        src/host/core/backend_host.cpp
+        src/host/ipc/ipc_pipe_server.cpp
     )
 
     add_executable(dynamo_backend_host ${DYNAMO_HOST_SOURCES})

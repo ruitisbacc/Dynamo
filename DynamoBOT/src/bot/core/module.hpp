@@ -8,9 +8,9 @@
  * Inspired by DarkOrbit bot architecture, adapted for WU.
  */
 
-#include "bot_config.hpp"
-#include "../game/hero.hpp"
-#include "../game/entities.hpp"
+#include "bot/core/bot_config.hpp"
+#include "game/hero.hpp"
+#include "game/entities.hpp"
 
 #include <string>
 #include <memory>

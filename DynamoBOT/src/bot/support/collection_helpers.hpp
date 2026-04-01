@@ -1,7 +1,7 @@
 #pragma once
 
-#include "navigation.hpp"
-#include "../game/entities.hpp"
+#include "bot/support/navigation.hpp"
+#include "game/entities.hpp"
 
 #include <cstdint>
 

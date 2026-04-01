@@ -1,11 +1,11 @@
 #pragma once
 
 #include "backend_snapshots.hpp"
-#include "ipc_pipe_server.hpp"
+#include "host/ipc/ipc_pipe_server.hpp"
 
-#include "../bot/bot_controller.hpp"
-#include "../config/config_service.hpp"
-#include "../game/game_engine.hpp"
+#include "bot/core/bot_controller.hpp"
+#include "config/config_service.hpp"
+#include "game/game_engine.hpp"
 
 #include <atomic>
 #include <chrono>

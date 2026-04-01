@@ -1,5 +1,5 @@
 #include "packet_registry.hpp"
-#include "kryo_serializer.hpp"
+#include "network/codec/kryo_serializer.hpp"
 #include "packets/auth_packets.hpp"
 #include "packets/api_packets.hpp"
 #include "packets/game_packets.hpp"

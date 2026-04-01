@@ -1,6 +1,6 @@
 #pragma once
 
-#include "bot_profile.hpp"
+#include "config/bot_profile.hpp"
 
 #include <filesystem>
 #include <functional>

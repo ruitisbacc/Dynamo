@@ -8,12 +8,12 @@
  * Based on wupacket-main navigation.js
  */
 
-#include "module.hpp"
-#include "bot_config.hpp"
-#include "map_graph.hpp"
-#include "navigation.hpp"
-#include "movement_controller.hpp"
-#include "../game/game_engine.hpp"
+#include "bot/core/module.hpp"
+#include "bot/core/bot_config.hpp"
+#include "bot/support/map_graph.hpp"
+#include "bot/support/navigation.hpp"
+#include "bot/support/movement_controller.hpp"
+#include "game/game_engine.hpp"
 
 #include <iostream>
 #include <limits>

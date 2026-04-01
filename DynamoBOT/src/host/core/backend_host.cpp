@@ -198,6 +198,9 @@ void BackendHost::setupEngineCallbacks() {
 
     engine_->onRevive([this]() {
         log("Hero revived.");
+        if (bot_) {
+            bot_->handleReviveEvent();
+        }
         broadcastStatus();
     });
 }

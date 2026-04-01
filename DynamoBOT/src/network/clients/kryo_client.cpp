@@ -1,5 +1,5 @@
 #include "kryo_client.hpp"
-#include "kryo_serializer.hpp"
+#include "network/codec/kryo_serializer.hpp"
 
 #include <asio.hpp>
 #include <format>

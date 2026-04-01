@@ -1,6 +1,6 @@
 #pragma once
 
-#include "network/kryo_serializer.hpp"
+#include "network/codec/kryo_serializer.hpp"
 #include <string>
 #include <cstdint>
 

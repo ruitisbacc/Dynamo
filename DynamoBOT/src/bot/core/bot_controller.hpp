@@ -11,17 +11,17 @@
 #include "scheduler.hpp"
 #include "module.hpp"
 #include "bot_config.hpp"
-#include "movement_controller.hpp"
-#include "safety_module.hpp"
-#include "combat_module.hpp"
-#include "collect_module.hpp"
-#include "roaming_module.hpp"
-#include "travel_module.hpp"
-#include "../config/config_service.hpp"
+#include "bot/support/movement_controller.hpp"
+#include "bot/modules/safety_module.hpp"
+#include "bot/modules/combat_module.hpp"
+#include "bot/modules/collect_module.hpp"
+#include "bot/modules/roaming_module.hpp"
+#include "bot/modules/travel_module.hpp"
+#include "config/config_service.hpp"
 
-#include "../game/game_engine.hpp"
-#include "../game/hero.hpp"
-#include "../game/entities.hpp"
+#include "game/game_engine.hpp"
+#include "game/hero.hpp"
+#include "game/entities.hpp"
 
 #include <memory>
 #include <atomic>
@@ -223,6 +223,13 @@ public:
         immediateDeathRevivePending_.store(true);
     }
     
+    void handleReviveEvent() {
+        if (!isRunning()) {
+            return;
+        }
+        reviveEventPending_.store(true);
+    }
+
     // Getters
     [[nodiscard]] BotState getState() const noexcept { return state_; }
     [[nodiscard]] bool isRunning() const noexcept { return state_ == BotState::Running; }
@@ -365,6 +372,7 @@ private:
     std::atomic<BotState> state_{BotState::Stopped};
     std::atomic<bool> shouldRun_{false};
     std::atomic<bool> immediateDeathRevivePending_{false};
+    std::atomic<bool> reviveEventPending_{false};
     std::thread botThread_;
     
     std::function<void(BotState)> stateCallback_;
@@ -490,6 +498,8 @@ private:
         wasDead_ = false;
         deathDetectedAtMs_ = 0;
         nextReviveAttemptAtMs_ = 0;
+        immediateDeathRevivePending_.store(false);
+        reviveEventPending_.store(false);
         
         if (stateCallback_) {
             stateCallback_(state_);
@@ -603,6 +613,20 @@ private:
         }
     }
 
+    void confirmSafetyAfterRevive(int64_t nowMs) {
+        engine_->clearPendingActions();
+        if (movement_) {
+            movement_->reset();
+        }
+
+        std::lock_guard<std::mutex> lock(schedulerMutex_);
+        Module* safetyBase = scheduler_.findModule("Safety");
+        auto* safety = dynamic_cast<SafetyModule*>(safetyBase);
+        if (safety) {
+            safety->confirmRevive(nowMs);
+        }
+    }
+
     void applyModeToModules(const BotConfig& runtime) {
         std::lock_guard<std::mutex> lock(schedulerMutex_);
         applyModeToModulesLocked(runtime);
@@ -632,6 +656,10 @@ private:
     [[nodiscard]] bool handleDeathsAndRevive(const GameSnapshot& snap, const BotConfig& runtime) {
         const bool deadNow = engine_->isDead();
         const int64_t now = snap.timestampMs;
+
+        if (!deadNow && reviveEventPending_.exchange(false)) {
+            confirmSafetyAfterRevive(now);
+        }
 
         // Process deferred immediate-death signal from engine callback thread
         if (immediateDeathRevivePending_.exchange(false) && deadNow && runtime.revive.enabled) {

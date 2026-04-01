@@ -7,7 +7,7 @@
  * Evaluates all modules each tick and runs the one with highest priority.
  */
 
-#include "module.hpp"
+#include "bot/core/module.hpp"
 #include <vector>
 #include <memory>
 #include <algorithm>
