@@ -110,6 +110,7 @@ void PacketRegistry::registerAllPackets() {
     registerPacket<QuestsActionResponsePacket>(PacketId::QuestsActionResponsePacket);
     
     // Register resource packets
+    registerPacket<ResourcesPack>(PacketId::ResourcesPack);
     registerPacket<ResourcesActionRequestPacket>(PacketId::ResourcesActionRequestPacket);
     registerPacket<ResourcesInfoResponsePacket>(PacketId::ResourcesInfoResponsePacket);
     registerPacket<ResourcesTradeInfoResponsePacket>(PacketId::ResourcesTradeInfoResponsePacket);

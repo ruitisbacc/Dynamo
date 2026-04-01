@@ -16,6 +16,7 @@
 #include "game/map.hpp"
 #include "game/entities.hpp"
 #include "game/hero.hpp"
+#include "game/resource_state.hpp"
 
 // Action system
 #include "game/action_queue.hpp"

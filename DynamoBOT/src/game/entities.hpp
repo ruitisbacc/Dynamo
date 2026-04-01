@@ -226,6 +226,9 @@ struct StationInfo {
         float dy = y - oy;
         return std::sqrt(dx * dx + dy * dy);
     }
+
+    bool isSpaceStation() const { return type == "SPACE_STATION"; }
+    bool isTradeStation() const { return type == "TRADE_STATION"; }
 };
 
 /**

@@ -1,6 +1,11 @@
 #pragma once
 
+#include "packets/game_packets.hpp"
+#include "network/registry/packet_registry.hpp"
 #include "network/codec/kryo_serializer.hpp"
+
+#include <optional>
+#include <stdexcept>
 #include <string>
 #include <vector>
 #include <cstdint>
@@ -547,42 +552,231 @@ struct QuestsActionResponsePacket : public ISerializable {
 // RESOURCES PACKETS
 // ============================================================================
 
+struct ResourcesPack : public ISerializable {
+    std::vector<int32_t> amounts;
+
+    void serialize(KryoBuffer& buf) const override {
+        buf.writeVarInt(static_cast<int32_t>(amounts.size()) + 1, true);
+        for (int32_t amount : amounts) {
+            buf.writeKryoInt(amount);
+        }
+    }
+
+    void deserialize(KryoBuffer& buf) override {
+        const int32_t size = buf.readVarInt(true);
+        amounts.clear();
+        amounts.reserve(size > 0 ? size - 1 : 0);
+        for (int32_t i = 1; i < size; ++i) {
+            amounts.push_back(buf.readKryoInt());
+        }
+    }
+};
+
+struct ResourceInfo : public ISerializable {
+    int32_t amount{0};
+    int32_t maxRefineAmount{0};
+
+    void serialize(KryoBuffer& buf) const override {
+        buf.writeKryoInt(amount);
+        buf.writeKryoInt(maxRefineAmount);
+    }
+
+    void deserialize(KryoBuffer& buf) override {
+        amount = buf.readKryoInt();
+        maxRefineAmount = buf.readKryoInt();
+    }
+};
+
+struct ResourcesInfoResponsePacketEnrichmentInfo : public ISerializable {
+    int32_t amount{0};
+    std::vector<int32_t> possibleResources;
+    int32_t type{0};
+
+    void serialize(KryoBuffer& buf) const override {
+        buf.writeKryoInt(amount);
+        detail::writeNullableIntArrayPayload(buf, &possibleResources);
+        buf.writeKryoInt(type);
+    }
+
+    void deserialize(KryoBuffer& buf) override {
+        amount = buf.readKryoInt();
+        if (auto values = detail::readNullableIntArrayPayload(buf)) {
+            possibleResources = std::move(*values);
+        } else {
+            possibleResources.clear();
+        }
+
+        type = buf.readKryoInt();
+    }
+};
+
 struct ResourcesActionRequestPacket : public ISerializable {
     int32_t actionId{0};
-    std::string dataJson;
+    std::optional<std::vector<int32_t>> data;
     
     void serialize(KryoBuffer& buf) const override {
-        buf.writeVarInt(actionId, true);
-        buf.writeString(dataJson);
+        buf.writeKryoInt(actionId);
+        if (!data.has_value()) {
+            buf.writeVarInt(detail::WireClass::Null, true);
+            return;
+        }
+
+        buf.writeVarInt(detail::WireClass::IntArray, true);
+        detail::writeIntArrayPayload(buf, *data);
     }
     
     void deserialize(KryoBuffer& buf) override {
-        actionId = buf.readVarInt(true);
-        dataJson = buf.readString();
+        actionId = buf.readKryoInt();
+
+        const int32_t dataClassId = buf.readVarInt(true);
+        if (dataClassId == detail::WireClass::Null) {
+            data.reset();
+        } else if (dataClassId == detail::WireClass::IntArray) {
+            data = detail::readIntArrayPayload(buf);
+        } else {
+            throw std::runtime_error("Unexpected ResourcesActionRequestPacket.data class id");
+        }
     }
 };
 
 struct ResourcesInfoResponsePacket : public ISerializable {
-    std::string resourcesJson;
+    std::vector<ResourcesInfoResponsePacketEnrichmentInfo> enriches;
+    std::vector<ResourceInfo> resources;
     
     void serialize(KryoBuffer& buf) const override {
-        buf.writeString(resourcesJson);
+        constexpr int32_t kEnrichmentInfoArrayWireId =
+            static_cast<int32_t>(PacketId::ResourcesInfoResponsePacketEnrichmentInfoArray) + 14;
+        constexpr int32_t kEnrichmentInfoWireId =
+            static_cast<int32_t>(PacketId::ResourcesInfoResponsePacketEnrichmentInfo) + 14;
+        constexpr int32_t kResourceInfoArrayWireId =
+            static_cast<int32_t>(PacketId::ResourceInfoArray) + 14;
+        constexpr int32_t kResourceInfoWireId =
+            static_cast<int32_t>(PacketId::ResourceInfo) + 14;
+
+        buf.writeVarInt(kEnrichmentInfoArrayWireId, true);
+        detail::writeArraySize(buf, static_cast<int32_t>(enriches.size()));
+        for (const auto& enrich : enriches) {
+            buf.writeVarInt(kEnrichmentInfoWireId, true);
+            enrich.serialize(buf);
+        }
+
+        buf.writeVarInt(kResourceInfoArrayWireId, true);
+        detail::writeArraySize(buf, static_cast<int32_t>(resources.size()));
+        for (const auto& resource : resources) {
+            buf.writeVarInt(kResourceInfoWireId, true);
+            resource.serialize(buf);
+        }
     }
     
     void deserialize(KryoBuffer& buf) override {
-        resourcesJson = buf.readString();
+        constexpr int32_t kEnrichmentInfoArrayWireId =
+            static_cast<int32_t>(PacketId::ResourcesInfoResponsePacketEnrichmentInfoArray) + 14;
+        constexpr int32_t kEnrichmentInfoWireId =
+            static_cast<int32_t>(PacketId::ResourcesInfoResponsePacketEnrichmentInfo) + 14;
+        constexpr int32_t kResourceInfoArrayWireId =
+            static_cast<int32_t>(PacketId::ResourceInfoArray) + 14;
+        constexpr int32_t kResourceInfoWireId =
+            static_cast<int32_t>(PacketId::ResourceInfo) + 14;
+
+        enriches.clear();
+        resources.clear();
+
+        const int32_t enrichArrayClassId = buf.readVarInt(true);
+        if (enrichArrayClassId != detail::WireClass::Null) {
+            if (enrichArrayClassId != kEnrichmentInfoArrayWireId) {
+                throw std::runtime_error("Unexpected ResourcesInfoResponsePacket.enriches class id");
+            }
+
+            const int32_t enrichSize = detail::readArraySize(buf);
+            enriches.reserve(enrichSize);
+            for (int32_t i = 0; i < enrichSize; ++i) {
+                const int32_t elementClassId = buf.readVarInt(true);
+                if (elementClassId == detail::WireClass::Null) {
+                    enriches.emplace_back();
+                    continue;
+                }
+                if (elementClassId != kEnrichmentInfoWireId) {
+                    throw std::runtime_error("Unexpected ResourcesInfoResponsePacket.enriches element class id");
+                }
+
+                auto& enrich = enriches.emplace_back();
+                enrich.deserialize(buf);
+            }
+        }
+
+        const int32_t resourcesArrayClassId = buf.readVarInt(true);
+        if (resourcesArrayClassId != detail::WireClass::Null) {
+            if (resourcesArrayClassId != kResourceInfoArrayWireId) {
+                throw std::runtime_error("Unexpected ResourcesInfoResponsePacket.resources class id");
+            }
+
+            const int32_t resourceSize = detail::readArraySize(buf);
+            resources.reserve(resourceSize);
+            for (int32_t i = 0; i < resourceSize; ++i) {
+                const int32_t elementClassId = buf.readVarInt(true);
+                if (elementClassId == detail::WireClass::Null) {
+                    resources.emplace_back();
+                    continue;
+                }
+                if (elementClassId != kResourceInfoWireId) {
+                    throw std::runtime_error("Unexpected ResourcesInfoResponsePacket.resources element class id");
+                }
+
+                auto& resource = resources.emplace_back();
+                resource.deserialize(buf);
+            }
+        }
     }
 };
 
 struct ResourcesTradeInfoResponsePacket : public ISerializable {
-    std::string tradeInfoJson;
+    std::vector<ResourceInfo> resources;
     
     void serialize(KryoBuffer& buf) const override {
-        buf.writeString(tradeInfoJson);
+        constexpr int32_t kResourceInfoArrayWireId =
+            static_cast<int32_t>(PacketId::ResourceInfoArray) + 14;
+        constexpr int32_t kResourceInfoWireId =
+            static_cast<int32_t>(PacketId::ResourceInfo) + 14;
+
+        buf.writeVarInt(kResourceInfoArrayWireId, true);
+        detail::writeArraySize(buf, static_cast<int32_t>(resources.size()));
+        for (const auto& resource : resources) {
+            buf.writeVarInt(kResourceInfoWireId, true);
+            resource.serialize(buf);
+        }
     }
     
     void deserialize(KryoBuffer& buf) override {
-        tradeInfoJson = buf.readString();
+        constexpr int32_t kResourceInfoArrayWireId =
+            static_cast<int32_t>(PacketId::ResourceInfoArray) + 14;
+        constexpr int32_t kResourceInfoWireId =
+            static_cast<int32_t>(PacketId::ResourceInfo) + 14;
+
+        resources.clear();
+
+        const int32_t resourcesArrayClassId = buf.readVarInt(true);
+        if (resourcesArrayClassId == detail::WireClass::Null) {
+            return;
+        }
+        if (resourcesArrayClassId != kResourceInfoArrayWireId) {
+            throw std::runtime_error("Unexpected ResourcesTradeInfoResponsePacket.resources class id");
+        }
+
+        const int32_t resourceSize = detail::readArraySize(buf);
+        resources.reserve(resourceSize);
+        for (int32_t i = 0; i < resourceSize; ++i) {
+            const int32_t elementClassId = buf.readVarInt(true);
+            if (elementClassId == detail::WireClass::Null) {
+                resources.emplace_back();
+                continue;
+            }
+            if (elementClassId != kResourceInfoWireId) {
+                throw std::runtime_error("Unexpected ResourcesTradeInfoResponsePacket.resources element class id");
+            }
+
+            auto& resource = resources.emplace_back();
+            resource.deserialize(buf);
+        }
     }
 };
 
@@ -781,18 +975,6 @@ struct ConvoyEventInfo : public ISerializable {
     
     void deserialize(KryoBuffer& buf) override {
         eventJson = buf.readString();
-    }
-};
-
-struct ResourcesPack : public ISerializable {
-    std::string resourcesJson;
-    
-    void serialize(KryoBuffer& buf) const override {
-        buf.writeString(resourcesJson);
-    }
-    
-    void deserialize(KryoBuffer& buf) override {
-        resourcesJson = buf.readString();
     }
 };
 

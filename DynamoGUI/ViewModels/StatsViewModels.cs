@@ -77,3 +77,32 @@ public sealed class StatsSectionViewModel
 
     public ObservableCollection<StatsEntryViewModel> Rows { get; } = [];
 }
+
+public sealed class ResourceAmountViewModel : ViewModelBase
+{
+    private long _amount;
+
+    public ResourceAmountViewModel(string label)
+    {
+        Label = label;
+    }
+
+    public string Label { get; }
+
+    public long Amount
+    {
+        get => _amount;
+        private set
+        {
+            if (SetProperty(ref _amount, value))
+                OnPropertyChanged(nameof(AmountDisplay));
+        }
+    }
+
+    public string AmountDisplay => Amount.ToString("N0", CultureInfo.CurrentCulture);
+
+    public void Update(long amount)
+    {
+        Amount = amount;
+    }
+}

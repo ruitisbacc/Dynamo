@@ -102,6 +102,7 @@
                                       HeroMoving="{Binding HeroMoving}"
                                       MapWidth="{Binding MapWidth}"
                                       MapHeight="{Binding MapHeight}"
+                                      CurrentMap="{Binding CurrentMap}"
                                       HasTarget="{Binding HasTarget}"
                                       TargetX="{Binding TargetX}"
                                       TargetY="{Binding TargetY}"
@@ -325,67 +326,103 @@
 
         <Border Grid.Row="1" Classes="shell-surface" Padding="0">
           <ScrollViewer VerticalScrollBarVisibility="Auto">
-            <ItemsControl ItemsSource="{Binding StatsSections}">
-              <ItemsControl.ItemsPanel>
-                <ItemsPanelTemplate>
-                  <StackPanel Spacing="12" Margin="12" />
-                </ItemsPanelTemplate>
-              </ItemsControl.ItemsPanel>
-              <ItemsControl.ItemTemplate>
-                <DataTemplate x:DataType="vm:StatsSectionViewModel">
-                  <Border Classes="shell-surface" Padding="16,14">
-                    <StackPanel Spacing="10">
-                      <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
-                        <TextBlock Text="{Binding Title}"
-                                   FontSize="13"
-                                   FontWeight="SemiBold" />
-                        <TextBlock Grid.Column="1"
-                                   Text="Session"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   HorizontalAlignment="Right" />
-                        <TextBlock Grid.Column="2"
-                                   Text="Total"
-                                   FontSize="10"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextMutedBrush}"
-                                   HorizontalAlignment="Right" />
-                      </Grid>
+            <StackPanel Spacing="12" Margin="12">
+              <ItemsControl ItemsSource="{Binding StatsSections}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:StatsSectionViewModel">
+                    <Border Classes="shell-surface" Padding="16,14">
+                      <StackPanel Spacing="10">
+                        <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
+                          <TextBlock Text="{Binding Title}"
+                                     FontSize="13"
+                                     FontWeight="SemiBold" />
+                          <TextBlock Grid.Column="1"
+                                     Text="Session"
+                                     FontSize="10"
+                                     FontWeight="SemiBold"
+                                     Foreground="{StaticResource TextMutedBrush}"
+                                     HorizontalAlignment="Right" />
+                          <TextBlock Grid.Column="2"
+                                     Text="Total"
+                                     FontSize="10"
+                                     FontWeight="SemiBold"
+                                     Foreground="{StaticResource TextMutedBrush}"
+                                     HorizontalAlignment="Right" />
+                        </Grid>
 
-                      <Border Classes="separator" />
+                        <Border Classes="separator" />
 
-                      <ItemsControl ItemsSource="{Binding Rows}">
-                        <ItemsControl.ItemsPanel>
-                          <ItemsPanelTemplate>
-                            <StackPanel Spacing="6" />
-                          </ItemsPanelTemplate>
-                        </ItemsControl.ItemsPanel>
-                        <ItemsControl.ItemTemplate>
-                          <DataTemplate x:DataType="vm:StatsEntryViewModel">
-                            <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
-                              <TextBlock Text="{Binding Label}"
-                                         FontSize="12" />
-                              <TextBlock Grid.Column="1"
-                                         Text="{Binding SessionDisplay}"
-                                         FontSize="12"
-                                         FontFamily="Consolas, Cascadia Code, monospace"
-                                         Foreground="{Binding SessionBrush}"
-                                         HorizontalAlignment="Right" />
-                              <TextBlock Grid.Column="2"
-                                         Text="{Binding TotalDisplay}"
-                                         FontSize="12"
-                                         FontFamily="Consolas, Cascadia Code, monospace"
-                                         HorizontalAlignment="Right" />
-                            </Grid>
-                          </DataTemplate>
-                        </ItemsControl.ItemTemplate>
-                      </ItemsControl>
-                    </StackPanel>
-                  </Border>
-                </DataTemplate>
-              </ItemsControl.ItemTemplate>
-            </ItemsControl>
+                        <ItemsControl ItemsSource="{Binding Rows}">
+                          <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                              <StackPanel Spacing="6" />
+                            </ItemsPanelTemplate>
+                          </ItemsControl.ItemsPanel>
+                          <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:StatsEntryViewModel">
+                              <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
+                                <TextBlock Text="{Binding Label}"
+                                           FontSize="12" />
+                                <TextBlock Grid.Column="1"
+                                           Text="{Binding SessionDisplay}"
+                                           FontSize="12"
+                                           FontFamily="Consolas, Cascadia Code, monospace"
+                                           Foreground="{Binding SessionBrush}"
+                                           HorizontalAlignment="Right" />
+                                <TextBlock Grid.Column="2"
+                                           Text="{Binding TotalDisplay}"
+                                           FontSize="12"
+                                           FontFamily="Consolas, Cascadia Code, monospace"
+                                           HorizontalAlignment="Right" />
+                              </Grid>
+                            </DataTemplate>
+                          </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <Border Classes="shell-surface" Padding="16,14">
+                <StackPanel Spacing="10">
+                  <Grid ColumnDefinitions="*,120" ColumnSpacing="12">
+                    <TextBlock Text="Current Resources"
+                               FontSize="13"
+                               FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="1"
+                               Text="Amount"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               HorizontalAlignment="Right" />
+                  </Grid>
+
+                  <Border Classes="separator" />
+
+                  <ItemsControl ItemsSource="{Binding CurrentResourceRows}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Spacing="6" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:ResourceAmountViewModel">
+                        <Grid ColumnDefinitions="*,120" ColumnSpacing="12">
+                          <TextBlock Text="{Binding Label}"
+                                     FontSize="12" />
+                          <TextBlock Grid.Column="1"
+                                     Text="{Binding AmountDisplay}"
+                                     FontSize="12"
+                                     FontFamily="Consolas, Cascadia Code, monospace"
+                                     HorizontalAlignment="Right" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
+            </StackPanel>
           </ScrollViewer>
         </Border>
       </Grid>

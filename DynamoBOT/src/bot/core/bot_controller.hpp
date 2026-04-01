@@ -583,6 +583,7 @@ private:
         // Get snapshots from engine
         snap.hero = engine_->hero();
         snap.entities = engine_->entities();
+        snap.resources = engine_->resourceState();
         snap.timestampMs = currentTimeMs();
         snap.mapName = engine_->currentMap();
         snap.mapId = engine_->mapInfo().id;

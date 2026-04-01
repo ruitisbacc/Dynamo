@@ -85,6 +85,30 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     energyEm
 )
 
+struct ResourceInventorySnapshot {
+    long long cerium{0};
+    long long mercury{0};
+    long long erbium{0};
+    long long piritid{0};
+    long long darkonit{0};
+    long long uranit{0};
+    long long azurit{0};
+    long long dungid{0};
+    long long xureon{0};
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
+    ResourceInventorySnapshot,
+    cerium,
+    mercury,
+    erbium,
+    piritid,
+    darkonit,
+    uranit,
+    azurit,
+    dungid,
+    xureon
+)
+
 struct SessionStatsSnapshot {
     long long runtimeMs{0};
     InventoryStatsSnapshot session;
@@ -149,6 +173,7 @@ struct BackendStatusSnapshot {
     std::string travelDecision{"-"};
     std::string travelDestination{"-"};
     std::string roamingDecision{"Idle"};
+    ResourceInventorySnapshot currentResources;
     SessionStatsSnapshot stats;
     std::vector<MapEntity> mapEntities;
 };
@@ -205,6 +230,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     travelDecision,
     travelDestination,
     roamingDecision,
+    currentResources,
     stats,
     mapEntities
 )

@@ -4,6 +4,7 @@
 #include "game/map.hpp"
 #include "game/entities.hpp"
 #include "game/hero.hpp"
+#include "game/resource_state.hpp"
 #include "game/action_queue.hpp"
 #include "packets/game_packets.hpp"
 #include "packets/action_packets.hpp"
@@ -176,6 +177,11 @@ public:
      * @brief Get map info
      */
     MapInfo mapInfo() const;
+
+    /**
+     * @brief Get latest resource/refine/enrichment/trade snapshot
+     */
+    ResourceStateSnapshot resourceState() const;
     
     /**
      * @brief Get current map name
@@ -282,6 +288,42 @@ public:
      * @brief Logout from game
      */
     void logout();
+
+    //--------------------------------------------------------------------------
+    // Resources
+    //--------------------------------------------------------------------------
+
+    /**
+     * @brief Simulate opening the resources panel and fetch refine/enrichment state
+     */
+    void requestResourcesInfo();
+
+    /**
+     * @brief Refine a resource target (Darkonit..Xureon)
+     * @param resourceType Output resource type id (4..8)
+     * @param amount Output amount to refine
+     */
+    void refineResource(int32_t resourceType, int32_t amount);
+
+    /**
+     * @brief Enrich a module using a resource
+     * @param moduleType 0=lasers, 1=rockets, 2=shields, 3=speed
+     * @param resourceType Resource type id
+     * @param amount Number of resource units to apply
+     */
+    void enrichModule(int32_t moduleType, int32_t resourceType, int32_t amount);
+
+    /**
+     * @brief Simulate opening the trade tab and fetch trade/sell state
+     */
+    void requestResourcesTradeInfo();
+
+    /**
+     * @brief Sell a resource stack via the trade station flow
+     * @param resourceType Resource type id (0..8)
+     * @param amount Amount to sell
+     */
+    void sellResource(int32_t resourceType, int32_t amount);
 
     //--------------------------------------------------------------------------
     // Shop
@@ -403,6 +445,7 @@ private:
     void sendPacket(const std::vector<uint8_t>& data);
     void sendUserAction(int32_t actionId, const std::string& data = "");
     void sendApiRequest(const std::string& uri, const std::string& jsonBody);
+    void sendResourcesAction(int32_t actionId, std::optional<std::vector<int32_t>> data = std::nullopt);
     
     // Internal helpers
     std::string buildClientInfoJson() const;
@@ -436,6 +479,7 @@ private:
     Hero hero_;
     Entities entities_;
     MapInfo mapInfo_;
+    ResourceStateSnapshot resourceState_;
     
     // Action queue
     ActionQueue actionQueue_;

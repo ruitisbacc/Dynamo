@@ -27,6 +27,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly BackendService _backend;
     private readonly IpcClient _ipc;
     private readonly Dictionary<string, StatsEntryViewModel> _statsRows = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ResourceAmountViewModel> _resourceRows = new(StringComparer.Ordinal);
     private bool _disposed;
 
     public ProfileEditorViewModel ProfileEditor { get; }
@@ -290,6 +291,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     public ObservableCollection<string> Profiles { get; } = new();
     public ObservableCollection<StatsSectionViewModel> StatsSections { get; } = new();
+    public ObservableCollection<ResourceAmountViewModel> CurrentResourceRows { get; } = new();
 
     // ── Computed ──
 
@@ -346,6 +348,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         _ipc = session.Ipc;
         ProfileEditor = new ProfileEditorViewModel(_ipc);
         InitializeStatsSections();
+        InitializeResourceRows();
 
         Profiles.Add("default");
         SelectedProfile = "default";
@@ -548,6 +551,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             BotRunning = snapshot.BotRunning;
             BotPaused = snapshot.BotPaused;
             ApplyStatsSnapshot(snapshot.Stats);
+            ApplyCurrentResources(snapshot.CurrentResources);
 
             OnPropertyChanged(nameof(BackendBadge));
             OnPropertyChanged(nameof(HeroMovementLabel));
@@ -611,6 +615,29 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             ("energy_em", "EM")));
     }
 
+    private void InitializeResourceRows()
+    {
+        CurrentResourceRows.Clear();
+        _resourceRows.Clear();
+
+        AddResourceRow("cerium", "Cerium");
+        AddResourceRow("mercury", "Mercury");
+        AddResourceRow("erbium", "Erbium");
+        AddResourceRow("piritid", "Piritid");
+        AddResourceRow("darkonit", "Darkonit");
+        AddResourceRow("uranit", "Uranit");
+        AddResourceRow("azurit", "Azurit");
+        AddResourceRow("dungid", "Dungid");
+        AddResourceRow("xureon", "Xureon");
+    }
+
+    private void AddResourceRow(string key, string label)
+    {
+        var row = new ResourceAmountViewModel(label);
+        CurrentResourceRows.Add(row);
+        _resourceRows[key] = row;
+    }
+
     private StatsSectionViewModel CreateStatsSection(
         string title,
         params (string Key, string Label)[] rows)
@@ -658,6 +685,27 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         if (_statsRows.TryGetValue(key, out var row))
             row.Update(session, total);
+    }
+
+    private void ApplyCurrentResources(ResourceInventorySnapshot? resources)
+    {
+        resources ??= new ResourceInventorySnapshot();
+
+        UpdateResourceRow("cerium", resources.Cerium);
+        UpdateResourceRow("mercury", resources.Mercury);
+        UpdateResourceRow("erbium", resources.Erbium);
+        UpdateResourceRow("piritid", resources.Piritid);
+        UpdateResourceRow("darkonit", resources.Darkonit);
+        UpdateResourceRow("uranit", resources.Uranit);
+        UpdateResourceRow("azurit", resources.Azurit);
+        UpdateResourceRow("dungid", resources.Dungid);
+        UpdateResourceRow("xureon", resources.Xureon);
+    }
+
+    private void UpdateResourceRow(string key, long amount)
+    {
+        if (_resourceRows.TryGetValue(key, out var row))
+            row.Update(amount);
     }
 
     private static string FormatDuration(long totalSeconds)

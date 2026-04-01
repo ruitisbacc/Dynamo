@@ -11,6 +11,11 @@ namespace {
 
 constexpr auto kHostLoopInterval = std::chrono::milliseconds(16);
 constexpr auto kStatusBroadcastInterval = std::chrono::milliseconds(16);
+constexpr auto kResourceRefreshInterval = std::chrono::seconds(2);
+
+bool isTradeMapName(const std::string& mapName) {
+    return mapName.ends_with("-1") || mapName.ends_with("-7");
+}
 
 std::string laserName(int type) {
     switch (type) {
@@ -68,6 +73,28 @@ dynamo::host::InventoryStatsSnapshot inventoryStatsFromHero(const dynamo::HeroSn
     return stats;
 }
 
+dynamo::host::ResourceInventorySnapshot resourceInventoryFromState(
+    const dynamo::ResourceStateSnapshot& resourceState
+) {
+    dynamo::host::ResourceInventorySnapshot snapshot;
+
+    auto amountOf = [&](dynamo::ResourceType type) -> long long {
+        const auto* resource = resourceState.findResource(static_cast<int32_t>(type));
+        return resource ? resource->amount : 0;
+    };
+
+    snapshot.cerium = amountOf(dynamo::ResourceType::Cerium);
+    snapshot.mercury = amountOf(dynamo::ResourceType::Mercury);
+    snapshot.erbium = amountOf(dynamo::ResourceType::Erbium);
+    snapshot.piritid = amountOf(dynamo::ResourceType::Piritid);
+    snapshot.darkonit = amountOf(dynamo::ResourceType::Darkonit);
+    snapshot.uranit = amountOf(dynamo::ResourceType::Uranit);
+    snapshot.azurit = amountOf(dynamo::ResourceType::Azurit);
+    snapshot.dungid = amountOf(dynamo::ResourceType::Dungid);
+    snapshot.xureon = amountOf(dynamo::ResourceType::Xureon);
+    return snapshot;
+}
+
 dynamo::host::InventoryStatsSnapshot subtractInventoryStats(
     const dynamo::host::InventoryStatsSnapshot& current,
     const dynamo::host::InventoryStatsSnapshot& baseline
@@ -109,6 +136,7 @@ BackendHost::BackendHost(BackendHostOptions options)
 
     ipc_.onClientConnected([this]() {
         log("GUI client connected.");
+        refreshResourcePanels();
         broadcastProfiles();
         broadcastStatus();
         broadcastActiveProfileDocument();
@@ -138,6 +166,7 @@ int BackendHost::run() {
 
     using clock = std::chrono::steady_clock;
     lastStatusBroadcast_ = clock::now();
+    lastResourceRefresh_ = clock::now() - kResourceRefreshInterval;
 
     while (!shutdownRequested_.load()) {
         processCommands();
@@ -147,6 +176,13 @@ int BackendHost::run() {
         }
 
         const auto now = clock::now();
+        if (ipc_.hasClient() &&
+            engineInitialized_ &&
+            engine_->state() == EngineState::InGame &&
+            now - lastResourceRefresh_ >= kResourceRefreshInterval) {
+            refreshResourcePanels();
+        }
+
         if (ipc_.hasClient() &&
             now - lastStatusBroadcast_ >= kStatusBroadcastInterval) {
             broadcastStatus();
@@ -186,6 +222,7 @@ void BackendHost::setupEngineCallbacks() {
         broadcastStatus();
         // Auto-fetch shop catalog on map load for autobuy
         engine_->requestShopItems();
+        refreshResourcePanels();
     });
 
     engine_->onDeath([this]() {
@@ -201,6 +238,7 @@ void BackendHost::setupEngineCallbacks() {
         if (bot_) {
             bot_->handleReviveEvent();
         }
+        refreshResourcePanels();
         broadcastStatus();
     });
 }
@@ -293,6 +331,22 @@ void BackendHost::disconnectGame(bool stopBot) {
 
     resetSessionTracking();
     broadcastStatus();
+}
+
+void BackendHost::refreshResourcePanels() {
+    if (!engineInitialized_ || engine_->state() != EngineState::InGame) {
+        return;
+    }
+
+    // Resource data is exposed by explicitly requesting the same packet flow
+    // the client uses when opening the resources/equipment panels.
+    engine_->requestResourcesInfo();
+
+    if (isTradeMapName(engine_->currentMap())) {
+        engine_->requestResourcesTradeInfo();
+    }
+
+    lastResourceRefresh_ = std::chrono::steady_clock::now();
 }
 
 void BackendHost::processCommands() {
@@ -640,6 +694,7 @@ BackendStatusSnapshot BackendHost::buildStatusSnapshot() {
     const auto hero = engine_->hero();
     const auto entities = engine_->entities();
     const auto mapInfo = engine_->mapInfo();
+    const auto resources = engine_->resourceState();
 
     snapshot.connectionState = engineState == EngineState::InGame
         ? "InGame"
@@ -670,6 +725,7 @@ BackendStatusSnapshot BackendHost::buildStatusSnapshot() {
     snapshot.activeConfig = hero.activeConfig;
     snapshot.currentLaser = laserName(hero.currentAmmoType);
     snapshot.currentRocket = rocketName(hero.currentRocketType);
+    snapshot.currentResources = resourceInventoryFromState(resources);
     snapshot.npcCount = static_cast<int>(entities.npcs.size());
     snapshot.enemyCount = static_cast<int>(entities.enemies.size());
     snapshot.boxCount = static_cast<int>(entities.boxes.size());

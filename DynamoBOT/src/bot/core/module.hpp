@@ -11,6 +11,7 @@
 #include "bot/core/bot_config.hpp"
 #include "game/hero.hpp"
 #include "game/entities.hpp"
+#include "game/resource_state.hpp"
 
 #include <string>
 #include <memory>
@@ -30,6 +31,7 @@ class MovementController;
 struct GameSnapshot {
     HeroSnapshot hero;
     EntitiesSnapshot entities;
+    ResourceStateSnapshot resources;
     
     int64_t timestampMs{0};
     int32_t mapId{0};

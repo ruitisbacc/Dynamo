@@ -7,6 +7,7 @@
 #include "packets/api_packets.hpp"
 #include "packets/auth_packets.hpp"
 #include "packets/action_packets.hpp"
+#include "packets/extra_packets.hpp"
 #include "packets/map_packets.hpp"
 
 #include <nlohmann/json.hpp>
@@ -32,6 +33,13 @@ namespace dynamo
         // primitives/FrameworkMessage classes first, so gameplay packet wire IDs
         // are shifted by 14 relative to PacketId values.
         constexpr int32_t kKryoClassIdOffset = 14;
+
+        int64_t steadyNowMs()
+        {
+            return std::chrono::duration_cast<std::chrono::milliseconds>(
+                       std::chrono::steady_clock::now().time_since_epoch())
+                .count();
+        }
 
         namespace FrameworkWireClass
         {
@@ -384,6 +392,7 @@ namespace dynamo
         {
             std::lock_guard<std::mutex> lock(stateMutex_);
             hero_.reset();
+            resourceState_ = ResourceStateSnapshot{};
         }
         entities_.clear();
         actionQueue_.clear();
@@ -594,6 +603,12 @@ namespace dynamo
     {
         std::lock_guard<std::mutex> lock(stateMutex_);
         return mapInfo_;
+    }
+
+    ResourceStateSnapshot GameEngine::resourceState() const
+    {
+        std::lock_guard<std::mutex> lock(stateMutex_);
+        return resourceState_;
     }
 
     std::string GameEngine::currentMap() const
@@ -807,6 +822,49 @@ namespace dynamo
         if (state_ != EngineState::InGame)
             return;
         sendUserAction(ActionType::LOGOUT);
+    }
+
+    void GameEngine::requestResourcesInfo()
+    {
+        sendResourcesAction(static_cast<int32_t>(ResourcesActionId::FetchInfo));
+    }
+
+    void GameEngine::refineResource(int32_t resourceType, int32_t amount)
+    {
+        if (!isValidRefineTargetType(resourceType) || amount <= 0)
+        {
+            return;
+        }
+        sendResourcesAction(
+            static_cast<int32_t>(ResourcesActionId::Refine),
+            std::vector<int32_t>{resourceType, amount});
+    }
+
+    void GameEngine::enrichModule(int32_t moduleType, int32_t resourceType, int32_t amount)
+    {
+        if (!isValidResourceModuleType(moduleType) || !isValidResourceType(resourceType) || amount <= 0)
+        {
+            return;
+        }
+        sendResourcesAction(
+            static_cast<int32_t>(ResourcesActionId::Enrich),
+            std::vector<int32_t>{moduleType, resourceType, amount});
+    }
+
+    void GameEngine::requestResourcesTradeInfo()
+    {
+        sendResourcesAction(static_cast<int32_t>(ResourcesActionId::FetchTradeInfo));
+    }
+
+    void GameEngine::sellResource(int32_t resourceType, int32_t amount)
+    {
+        if (!isValidResourceType(resourceType) || amount <= 0)
+        {
+            return;
+        }
+        sendResourcesAction(
+            static_cast<int32_t>(ResourcesActionId::Sell),
+            std::vector<int32_t>{resourceType, amount});
     }
 
     void GameEngine::predictMove(float targetX, float targetY)
@@ -1269,6 +1327,90 @@ namespace dynamo
             case PacketId::UserInfoResponsePacket:
             {
                 handleUserInfo(buffer);
+                break;
+            }
+
+            case PacketId::ResourcesPack:
+            {
+                ResourcesPack packet;
+                packet.deserialize(buffer);
+                break;
+            }
+
+            case PacketId::ResourcesInfoResponsePacket:
+            {
+                ResourcesInfoResponsePacket packet;
+                packet.deserialize(buffer);
+
+                {
+                    std::lock_guard<std::mutex> lock(stateMutex_);
+                    resourceState_.hasResourcesInfo = true;
+                    resourceState_.resourcesInfoUpdatedAtMs = steadyNowMs();
+
+                    for (auto& resource : resourceState_.resources) {
+                        resource = ResourceStackSnapshot{};
+                    }
+                    for (auto& enrich : resourceState_.enrichments) {
+                        enrich = EnrichmentStateSnapshot{};
+                    }
+
+                    const std::size_t resourceCount = std::min(
+                        resourceState_.resources.size(),
+                        packet.resources.size());
+                    for (std::size_t i = 0; i < resourceCount; ++i) {
+                        resourceState_.resources[i].amount = packet.resources[i].amount;
+                        resourceState_.resources[i].maxRefineAmount = packet.resources[i].maxRefineAmount;
+                    }
+
+                    const std::size_t enrichCount = std::min(
+                        resourceState_.enrichments.size(),
+                        packet.enriches.size());
+                    for (std::size_t i = 0; i < enrichCount; ++i) {
+                        resourceState_.enrichments[i].amount = packet.enriches[i].amount;
+                        resourceState_.enrichments[i].type = packet.enriches[i].type;
+                        resourceState_.enrichments[i].possibleResources = packet.enriches[i].possibleResources;
+                    }
+                }
+
+                if (config_.logPackets)
+                {
+                    appendEngineLog(std::format(
+                        "[Resources] Info updated: resources={} enrichments={}",
+                        packet.resources.size(),
+                        packet.enriches.size()));
+                }
+                break;
+            }
+
+            case PacketId::ResourcesTradeInfoResponsePacket:
+            {
+                ResourcesTradeInfoResponsePacket packet;
+                packet.deserialize(buffer);
+
+                {
+                    std::lock_guard<std::mutex> lock(stateMutex_);
+                    resourceState_.hasTradeInfo = true;
+                    resourceState_.tradeInfoUpdatedAtMs = steadyNowMs();
+
+                    for (auto& resource : resourceState_.tradeResources) {
+                        resource = ResourceStackSnapshot{};
+                    }
+
+                    const std::size_t resourceCount = std::min(
+                        resourceState_.tradeResources.size(),
+                        packet.resources.size());
+                    for (std::size_t i = 0; i < resourceCount; ++i) {
+                        resourceState_.tradeResources[i].amount = packet.resources[i].amount;
+                        resourceState_.tradeResources[i].maxRefineAmount = packet.resources[i].maxRefineAmount;
+                    }
+                }
+
+                if (config_.logPackets)
+                {
+                    appendEngineLog(std::format(
+                        "[Resources] Trade info updated: resources={}",
+                        packet.resources.size()));
+                }
                 break;
             }
 
@@ -2342,6 +2484,11 @@ namespace dynamo
             hero_.shield = ship->shield;
             hero_.maxShield = ship->maxShield;
             hero_.speed = ship->speed;
+            hero_.cargo = ship->cargo;
+            if (ship->maxCargo > 0)
+            {
+                hero_.maxCargo = ship->maxCargo;
+            }
             hero_.name = ship->name;
             hero_.clanTag = ship->clanTag;
             hero_.selectedTarget = ship->selectedTarget;
@@ -2461,6 +2608,25 @@ namespace dynamo
 
         std::string actionName = "action_" + std::to_string(actionId);
         queueAction(buffer.data(), 0, actionName);
+    }
+
+    void GameEngine::sendResourcesAction(int32_t actionId, std::optional<std::vector<int32_t>> data)
+    {
+        if (state_ != EngineState::InGame)
+        {
+            return;
+        }
+
+        ResourcesActionRequestPacket packet;
+        packet.actionId = actionId;
+        packet.data = std::move(data);
+
+        KryoBuffer buffer;
+        buffer.writeVarInt(encodeKryoPacketId(PacketId::ResourcesActionRequestPacket), true);
+        packet.serialize(buffer);
+
+        const std::string actionName = "resources_action_" + std::to_string(actionId);
+        queueAction(buffer.data(), 0, actionName, actionName, 250);
     }
 
     void GameEngine::requestShopItems()

@@ -6,6 +6,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Media;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using DynamoGUI.Models;
 
@@ -14,6 +15,7 @@ namespace DynamoGUI.Controls;
 public sealed class TacticalMapView : Control
 {
     private const double MapPadding = 10;
+    private const double MapBackgroundOpacity = 0.22;
     private const int TrailCapacity = 320;
     private const double TrailMinDistance = 25;
     private const double TrailMaxGap = 500;
@@ -35,6 +37,8 @@ public sealed class TacticalMapView : Control
         AvaloniaProperty.Register<TacticalMapView, int>(nameof(MapWidth), 21000);
     public static readonly StyledProperty<int> MapHeightProperty =
         AvaloniaProperty.Register<TacticalMapView, int>(nameof(MapHeight), 13500);
+    public static readonly StyledProperty<string?> CurrentMapProperty =
+        AvaloniaProperty.Register<TacticalMapView, string?>(nameof(CurrentMap));
     public static readonly StyledProperty<bool> HasTargetProperty =
         AvaloniaProperty.Register<TacticalMapView, bool>(nameof(HasTarget));
     public static readonly StyledProperty<int> TargetXProperty =
@@ -49,6 +53,7 @@ public sealed class TacticalMapView : Control
     // ── Pre-allocated brushes/pens ──
 
     private static readonly SolidColorBrush MapBgBrush = new(Color.Parse("#060A0F"));
+    private static readonly SolidColorBrush MapVeilBrush = new(Color.FromArgb(52, 6, 10, 15));
     private static readonly SolidColorBrush HeroWhiteBrush = new(Color.Parse("#F0F6FC"));
 
     private static readonly SolidColorBrush NpcBrush = new(Color.Parse("#EF4444"));
@@ -123,6 +128,8 @@ public sealed class TacticalMapView : Control
     private long _heroMoveDurationMs = 100;
     private long _lastSnapshotMs;
     private bool _interpInit;
+    private string? _backgroundMapKey;
+    private Bitmap? _backgroundBitmap;
 
     // ── Trail (circular buffer — O(1) add/remove) ──
     private readonly TrailPoint[] _trailBuffer = new TrailPoint[TrailCapacity];
@@ -191,6 +198,7 @@ public sealed class TacticalMapView : Control
     public bool HeroMoving { get => GetValue(HeroMovingProperty); set => SetValue(HeroMovingProperty, value); }
     public int MapWidth { get => GetValue(MapWidthProperty); set => SetValue(MapWidthProperty, value); }
     public int MapHeight { get => GetValue(MapHeightProperty); set => SetValue(MapHeightProperty, value); }
+    public string? CurrentMap { get => GetValue(CurrentMapProperty); set => SetValue(CurrentMapProperty, value); }
     public bool HasTarget { get => GetValue(HasTargetProperty); set => SetValue(HasTargetProperty, value); }
     public int TargetX { get => GetValue(TargetXProperty); set => SetValue(TargetXProperty, value); }
     public int TargetY { get => GetValue(TargetYProperty); set => SetValue(TargetYProperty, value); }
@@ -490,6 +498,8 @@ public sealed class TacticalMapView : Control
         var sx = renderW / mw;
         var sy = renderH / mh;
 
+        RenderMapBackground(context, renderW, renderH);
+
         // ── Trail ──
         if (_trailCount >= 2)
         {
@@ -549,6 +559,35 @@ public sealed class TacticalMapView : Control
         var borderRect = new Rect(MapPadding - 1, MapPadding - 1, renderW + 2, renderH + 2);
         context.DrawRectangle(null, BorderGlowOuterPen, borderRect);
         context.DrawRectangle(null, BorderMainPen, borderRect);
+    }
+
+    private void RenderMapBackground(DrawingContext context, double renderW, double renderH)
+    {
+        var mapRect = new Rect(MapPadding, MapPadding, renderW, renderH);
+        var bitmap = GetBackgroundBitmap();
+        if (bitmap is not null)
+        {
+            using (context.PushOpacity(MapBackgroundOpacity))
+            {
+                context.DrawImage(
+                    bitmap,
+                    new Rect(0, 0, bitmap.PixelSize.Width, bitmap.PixelSize.Height),
+                    mapRect);
+            }
+        }
+
+        context.DrawRectangle(MapVeilBrush, null, mapRect);
+    }
+
+    private Bitmap? GetBackgroundBitmap()
+    {
+        var mapKey = CurrentMap?.Trim();
+        if (string.Equals(_backgroundMapKey, mapKey, StringComparison.Ordinal))
+            return _backgroundBitmap;
+
+        _backgroundMapKey = mapKey;
+        _backgroundBitmap = TacticalMapAssets.TryGetBackground(mapKey);
+        return _backgroundBitmap;
     }
 
     private void RenderEntitiesByType(DrawingContext context, int type,

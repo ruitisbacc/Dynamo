@@ -53,6 +53,19 @@ public sealed class SessionStatsSnapshot
     public InventoryStatsSnapshot Total { get; set; } = new();
 }
 
+public sealed class ResourceInventorySnapshot
+{
+    public long Cerium { get; set; }
+    public long Mercury { get; set; }
+    public long Erbium { get; set; }
+    public long Piritid { get; set; }
+    public long Darkonit { get; set; }
+    public long Uranit { get; set; }
+    public long Azurit { get; set; }
+    public long Dungid { get; set; }
+    public long Xureon { get; set; }
+}
+
 public sealed class BackendStatusSnapshot
 {
     public string ConnectionState { get; set; } = "Disconnected";
@@ -106,6 +119,7 @@ public sealed class BackendStatusSnapshot
     public string TravelDecision { get; set; } = "-";
     public string TravelDestination { get; set; } = "-";
     public string RoamingDecision { get; set; } = "Idle";
+    public ResourceInventorySnapshot CurrentResources { get; set; } = new();
     public SessionStatsSnapshot Stats { get; set; } = new();
     public MapEntity[] MapEntities { get; set; } = [];
 }

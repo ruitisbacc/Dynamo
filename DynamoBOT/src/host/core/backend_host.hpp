@@ -41,6 +41,7 @@ private:
     void initializeEngineFromOptions();
     bool connectGame(const BackendConnectRequest& request);
     void disconnectGame(bool stopBot);
+    void refreshResourcePanels();
     void processCommands();
     void handleCommand(const IpcPipeServer::Command& command);
     void broadcastStatus();
@@ -89,6 +90,7 @@ private:
     } sessionTracking_;
 
     std::chrono::steady_clock::time_point lastStatusBroadcast_{};
+    std::chrono::steady_clock::time_point lastResourceRefresh_{};
 };
 
 } // namespace dynamo::host
