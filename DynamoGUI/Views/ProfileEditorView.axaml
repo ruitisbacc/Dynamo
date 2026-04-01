@@ -1,0 +1,227 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:DynamoGUI.ViewModels"
+             x:Class="DynamoGUI.Views.ProfileEditorView"
+             x:DataType="vm:ProfileEditorViewModel">
+
+  <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="2,0">
+    <StackPanel Spacing="8" MaxWidth="720">
+
+      <!-- ═══ Profile Bar ═══ -->
+      <Border Classes="card">
+        <StackPanel Spacing="6">
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <ComboBox Classes="input" ItemsSource="{Binding Profiles}" SelectedItem="{Binding SelectedProfileId}"
+                      MinWidth="160" FontSize="12" />
+            <Button Classes="header-btn" Content="New" FontSize="11" Padding="14,6" Click="OnNewClick" />
+            <Button Classes="primary" Content="Save" FontSize="11" Padding="14,6"
+                    IsEnabled="{Binding CanSave}" Click="OnSaveClick" />
+          </StackPanel>
+          <TextBlock Text="{Binding StatusText}" FontSize="11" Foreground="{StaticResource TextSecondaryBrush}" />
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ General ═══ -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="GENERAL" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <Grid ColumnDefinitions="Auto,160" ColumnSpacing="10">
+            <TextBlock Text="Working map" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" Classes="input" ItemsSource="{Binding KnownMaps}" SelectedItem="{Binding SelectedWorkingMap}" />
+          </Grid>
+          <StackPanel Orientation="Horizontal" Spacing="14">
+            <CheckBox Content="Kill NPCs" IsChecked="{Binding Kill}" FontSize="12" />
+            <CheckBox Content="Collect boxes" IsChecked="{Binding Collect}" FontSize="12" />
+            <CheckBox Content="Collect during combat" IsChecked="{Binding CollectDuringCombat}"
+                      IsEnabled="{Binding IsCollectDuringCombatEnabled}" FontSize="12" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ Config Slots ═══ -->
+      <Border Classes="card">
+        <StackPanel Spacing="6">
+          <TextBlock Text="CONFIG SLOTS" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <Grid ColumnDefinitions="Auto,100,Auto,100,Auto,100" ColumnSpacing="8">
+            <TextBlock Text="Roaming" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedRoamingSlot}" />
+            <TextBlock Grid.Column="2" Text="Flying" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="3" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedFlyingSlot}" />
+            <TextBlock Grid.Column="4" Text="Shooting" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="5" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedShootingSlot}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ Collection ═══ -->
+      <Border Classes="card">
+        <StackPanel Spacing="6">
+          <TextBlock Text="COLLECTION" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <StackPanel Orientation="Horizontal" Spacing="14">
+            <CheckBox Content="Bonus boxes" IsChecked="{Binding BonusBoxEnabled}" FontSize="12" />
+            <CheckBox Content="Cargo boxes" IsChecked="{Binding CargoBoxEnabled}" FontSize="12" />
+            <CheckBox Content="Green booty boxes" IsChecked="{Binding GreenBoxEnabled}" FontSize="12" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ Safety ═══ -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="SAFETY" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <StackPanel Orientation="Horizontal" Spacing="12">
+            <TextBlock Text="Emergency HP %" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBox Classes="input" Text="{Binding EmergencyHpPercent}" Width="50" FontSize="12" />
+            <TextBlock Text="Repair HP %" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBox Classes="input" Text="{Binding RepairHpPercent}" Width="50" FontSize="12" />
+            <TextBlock Text="Full HP %" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBox Classes="input" Text="{Binding FullHpPercent}" Width="50" FontSize="12" />
+          </StackPanel>
+          <Grid ColumnDefinitions="Auto,180" ColumnSpacing="10">
+            <TextBlock Text="Enemy flee mode" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <ComboBox Grid.Column="1" Classes="input"
+                      ItemsSource="{Binding SafetyFleeModeOptions}"
+                      SelectedItem="{Binding SelectedSafetyFleeMode}" />
+          </Grid>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ Disconnect Policies ═══ -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="DISCONNECT POLICIES" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <!-- Admin -->
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <CheckBox Content="Admin disconnect" IsChecked="{Binding AdminDisconnectEnabled}" FontSize="12" VerticalAlignment="Center" />
+            <TextBlock Text="Triggers on &gt;8 drones" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBlock Text="Cooldown min" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBox Classes="input" Text="{Binding AdminCooldownMinutes}" Width="40" FontSize="12" IsEnabled="{Binding AreAdminFieldsEnabled}" />
+          </StackPanel>
+          <!-- Death -->
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <CheckBox Content="Death disconnect" IsChecked="{Binding DeathDisconnectEnabled}" FontSize="12" VerticalAlignment="Center" />
+            <TextBlock Text="Deaths" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBox Classes="input" Text="{Binding DeathThreshold}" Width="40" FontSize="12" IsEnabled="{Binding AreDeathFieldsEnabled}" />
+            <TextBlock Text="Cooldown min" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBox Classes="input" Text="{Binding DeathCooldownMinutes}" Width="40" FontSize="12" IsEnabled="{Binding AreDeathFieldsEnabled}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ NPC Targeting ═══ -->
+      <Border Classes="card" Padding="8">
+        <StackPanel Spacing="6">
+          <TextBlock Text="NPC TARGETING" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" Margin="4,4,0,2" />
+          <ItemsControl ItemsSource="{Binding NpcRules}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:NpcRuleViewModel">
+                <Border Background="#0E1828" BorderBrush="#1A2940" BorderThickness="1" CornerRadius="6"
+                        Padding="10,8" Margin="3" Width="330">
+                  <StackPanel Spacing="5">
+                    <!-- Header -->
+                    <TextBlock Text="{Binding NpcName}" FontSize="12" FontWeight="Bold" />
+                    <!-- Variant rows -->
+                    <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="60,Auto,*,*,Auto" ColumnSpacing="6" RowSpacing="4">
+                      <!-- Default -->
+                      <TextBlock Grid.Row="0" Text="Normal" FontSize="11" Foreground="#9CA3AF" VerticalAlignment="Center" />
+                      <CheckBox Grid.Row="0" Grid.Column="1" IsChecked="{Binding DefaultVariant.Enabled}" />
+                      <ComboBox Grid.Row="0" Grid.Column="2" Classes="input" FontSize="11"
+                                ItemsSource="{Binding DefaultVariant.LaserAmmoOptions}"
+                                SelectedItem="{Binding DefaultVariant.SelectedLaserAmmo}" />
+                      <ComboBox Grid.Row="0" Grid.Column="3" Classes="input" FontSize="11"
+                                ItemsSource="{Binding DefaultVariant.RocketAmmoOptions}"
+                                SelectedItem="{Binding DefaultVariant.SelectedRocketAmmo}" />
+                      <Button Grid.Row="0" Grid.Column="4" Classes="header-btn" Padding="8,6"
+                              Tag="{Binding DefaultVariant}" ToolTip.Tip="{Binding DefaultVariant.SettingsSummary}"
+                              Click="OnVariantSettingsClick">
+                        <Path Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource TextSecondaryBrush}"
+                              Data="M8,1.5C8.47,1.5 8.85,1.88 8.85,2.35V2.9C9.25,3.01 9.63,3.17 9.98,3.38L10.37,2.99C10.7,2.66 11.23,2.66 11.56,2.99L13.01,4.44C13.34,4.77 13.34,5.3 13.01,5.63L12.62,6.02C12.83,6.37 12.99,6.75 13.1,7.15H13.65C14.12,7.15 14.5,7.53 14.5,8C14.5,8.47 14.12,8.85 13.65,8.85H13.1C12.99,9.25 12.83,9.63 12.62,9.98L13.01,10.37C13.34,10.7 13.34,11.23 13.01,11.56L11.56,13.01C11.23,13.34 10.7,13.34 10.37,13.01L9.98,12.62C9.63,12.83 9.25,12.99 8.85,13.1V13.65C8.85,14.12 8.47,14.5 8,14.5C7.53,14.5 7.15,14.12 7.15,13.65V13.1C6.75,12.99 6.37,12.83 6.02,12.62L5.63,13.01C5.3,13.34 4.77,13.34 4.44,13.01L2.99,11.56C2.66,11.23 2.66,10.7 2.99,10.37L3.38,9.98C3.17,9.63 3.01,9.25 2.9,8.85H2.35C1.88,8.85 1.5,8.47 1.5,8C1.5,7.53 1.88,7.15 2.35,7.15H2.9C3.01,6.75 3.17,6.37 3.38,6.02L2.99,5.63C2.66,5.3 2.66,4.77 2.99,4.44L4.44,2.99C4.77,2.66 5.3,2.66 5.63,2.99L6.02,3.38C6.37,3.17 6.75,3.01 7.15,2.9V2.35C7.15,1.88 7.53,1.5 8,1.5ZM8,5.45C6.59,5.45 5.45,6.59 5.45,8C5.45,9.41 6.59,10.55 8,10.55C9.41,10.55 10.55,9.41 10.55,8C10.55,6.59 9.41,5.45 8,5.45Z" />
+                      </Button>
+                      <!-- Hyper -->
+                      <TextBlock Grid.Row="1" Text="Hyper" FontSize="11" Foreground="#F59E0B" VerticalAlignment="Center" />
+                      <CheckBox Grid.Row="1" Grid.Column="1" IsChecked="{Binding HyperVariant.Enabled}" />
+                      <ComboBox Grid.Row="1" Grid.Column="2" Classes="input" FontSize="11"
+                                ItemsSource="{Binding HyperVariant.LaserAmmoOptions}"
+                                SelectedItem="{Binding HyperVariant.SelectedLaserAmmo}" />
+                      <ComboBox Grid.Row="1" Grid.Column="3" Classes="input" FontSize="11"
+                                ItemsSource="{Binding HyperVariant.RocketAmmoOptions}"
+                                SelectedItem="{Binding HyperVariant.SelectedRocketAmmo}" />
+                      <Button Grid.Row="1" Grid.Column="4" Classes="header-btn" Padding="8,6"
+                              Tag="{Binding HyperVariant}" ToolTip.Tip="{Binding HyperVariant.SettingsSummary}"
+                              Click="OnVariantSettingsClick">
+                        <Path Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource TextSecondaryBrush}"
+                              Data="M8,1.5C8.47,1.5 8.85,1.88 8.85,2.35V2.9C9.25,3.01 9.63,3.17 9.98,3.38L10.37,2.99C10.7,2.66 11.23,2.66 11.56,2.99L13.01,4.44C13.34,4.77 13.34,5.3 13.01,5.63L12.62,6.02C12.83,6.37 12.99,6.75 13.1,7.15H13.65C14.12,7.15 14.5,7.53 14.5,8C14.5,8.47 14.12,8.85 13.65,8.85H13.1C12.99,9.25 12.83,9.63 12.62,9.98L13.01,10.37C13.34,10.7 13.34,11.23 13.01,11.56L11.56,13.01C11.23,13.34 10.7,13.34 10.37,13.01L9.98,12.62C9.63,12.83 9.25,12.99 8.85,13.1V13.65C8.85,14.12 8.47,14.5 8,14.5C7.53,14.5 7.15,14.12 7.15,13.65V13.1C6.75,12.99 6.37,12.83 6.02,12.62L5.63,13.01C5.3,13.34 4.77,13.34 4.44,13.01L2.99,11.56C2.66,11.23 2.66,10.7 2.99,10.37L3.38,9.98C3.17,9.63 3.01,9.25 2.9,8.85H2.35C1.88,8.85 1.5,8.47 1.5,8C1.5,7.53 1.88,7.15 2.35,7.15H2.9C3.01,6.75 3.17,6.37 3.38,6.02L2.99,5.63C2.66,5.3 2.66,4.77 2.99,4.44L4.44,2.99C4.77,2.66 5.3,2.66 5.63,2.99L6.02,3.38C6.37,3.17 6.75,3.01 7.15,2.9V2.35C7.15,1.88 7.53,1.5 8,1.5ZM8,5.45C6.59,5.45 5.45,6.59 5.45,8C5.45,9.41 6.59,10.55 8,10.55C9.41,10.55 10.55,9.41 10.55,8C10.55,6.59 9.41,5.45 8,5.45Z" />
+                      </Button>
+                      <!-- Ultra -->
+                      <TextBlock Grid.Row="2" Text="Ultra" FontSize="11" Foreground="#EF4444" VerticalAlignment="Center" />
+                      <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding UltraVariant.Enabled}" />
+                      <ComboBox Grid.Row="2" Grid.Column="2" Classes="input" FontSize="11"
+                                ItemsSource="{Binding UltraVariant.LaserAmmoOptions}"
+                                SelectedItem="{Binding UltraVariant.SelectedLaserAmmo}" />
+                      <ComboBox Grid.Row="2" Grid.Column="3" Classes="input" FontSize="11"
+                                ItemsSource="{Binding UltraVariant.RocketAmmoOptions}"
+                                SelectedItem="{Binding UltraVariant.SelectedRocketAmmo}" />
+                      <Button Grid.Row="2" Grid.Column="4" Classes="header-btn" Padding="8,6"
+                              Tag="{Binding UltraVariant}" ToolTip.Tip="{Binding UltraVariant.SettingsSummary}"
+                              Click="OnVariantSettingsClick">
+                        <Path Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource TextSecondaryBrush}"
+                              Data="M8,1.5C8.47,1.5 8.85,1.88 8.85,2.35V2.9C9.25,3.01 9.63,3.17 9.98,3.38L10.37,2.99C10.7,2.66 11.23,2.66 11.56,2.99L13.01,4.44C13.34,4.77 13.34,5.3 13.01,5.63L12.62,6.02C12.83,6.37 12.99,6.75 13.1,7.15H13.65C14.12,7.15 14.5,7.53 14.5,8C14.5,8.47 14.12,8.85 13.65,8.85H13.1C12.99,9.25 12.83,9.63 12.62,9.98L13.01,10.37C13.34,10.7 13.34,11.23 13.01,11.56L11.56,13.01C11.23,13.34 10.7,13.34 10.37,13.01L9.98,12.62C9.63,12.83 9.25,12.99 8.85,13.1V13.65C8.85,14.12 8.47,14.5 8,14.5C7.53,14.5 7.15,14.12 7.15,13.65V13.1C6.75,12.99 6.37,12.83 6.02,12.62L5.63,13.01C5.3,13.34 4.77,13.34 4.44,13.01L2.99,11.56C2.66,11.23 2.66,10.7 2.99,10.37L3.38,9.98C3.17,9.63 3.01,9.25 2.9,8.85H2.35C1.88,8.85 1.5,8.47 1.5,8C1.5,7.53 1.88,7.15 2.35,7.15H2.9C3.01,6.75 3.17,6.37 3.38,6.02L2.99,5.63C2.66,5.3 2.66,4.77 2.99,4.44L4.44,2.99C4.77,2.66 5.3,2.66 5.63,2.99L6.02,3.38C6.37,3.17 6.75,3.01 7.15,2.9V2.35C7.15,1.88 7.53,1.5 8,1.5ZM8,5.45C6.59,5.45 5.45,6.59 5.45,8C5.45,9.41 6.59,10.55 8,10.55C9.41,10.55 10.55,9.41 10.55,8C10.55,6.59 9.41,5.45 8,5.45Z" />
+                      </Button>
+                    </Grid>
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- ═══ Advanced ═══ -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="ADVANCED" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <TextBlock Text="Avoid Maps" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" />
+          <ItemsControl ItemsSource="{Binding AvoidMaps}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MapSelectionItem">
+                <CheckBox Content="{Binding Name}" IsChecked="{Binding IsSelected}" Margin="0,0,10,2" FontSize="12" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Autobuy -->
+      <Border Classes="card">
+        <StackPanel Spacing="6">
+          <TextBlock Text="AUTOBUY" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <TextBlock Text="Lasers (buy 10,000 when low)" FontSize="11" Foreground="{StaticResource TextDimBrush}" />
+          <WrapPanel>
+            <CheckBox Content="RLX-1" IsChecked="{Binding AutobuyLaserRlx1}" FontSize="12" Margin="0,0,14,0" />
+            <CheckBox Content="GLX-2" IsChecked="{Binding AutobuyLaserGlx2}" FontSize="12" Margin="0,0,14,0" />
+            <CheckBox Content="BLX-3" IsChecked="{Binding AutobuyLaserBlx3}" FontSize="12" Margin="0,0,14,0" />
+            <CheckBox Content="GLX-2-AS" IsChecked="{Binding AutobuyLaserGlx2As}" FontSize="12" Margin="0,0,14,0" />
+            <CheckBox Content="MRS-6X" IsChecked="{Binding AutobuyLaserMrs6x}" FontSize="12" Margin="0,0,14,0" />
+          </WrapPanel>
+          <TextBlock Text="Rockets (buy 1,000 when low)" FontSize="11" Foreground="{StaticResource TextDimBrush}" />
+          <WrapPanel>
+            <CheckBox Content="KEP-410" IsChecked="{Binding AutobuyRocketKep410}" FontSize="12" Margin="0,0,14,0" />
+            <CheckBox Content="NC-30" IsChecked="{Binding AutobuyRocketNc30}" FontSize="12" Margin="0,0,14,0" />
+            <CheckBox Content="TNC-130" IsChecked="{Binding AutobuyRocketTnc130}" FontSize="12" Margin="0,0,14,0" />
+          </WrapPanel>
+        </StackPanel>
+      </Border>
+
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>

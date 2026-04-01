@@ -1,0 +1,71 @@
+# Default: ignore everything in repo root.
+/*
+
+# Keep the gitignore itself.
+!/.gitignore
+
+# Track only the two project folders.
+!/DynamoBOT/
+!/DynamoGUI/
+
+# Common IDE / OS noise inside tracked folders.
+**/.vs/
+**/.vscode/
+**/.idea/
+**/Thumbs.db
+**/Desktop.ini
+**/*.suo
+**/*.user
+**/*.userosscache
+**/*.sln.docstates
+**/*.VC.db
+**/*.VC.opendb
+
+# Native build artifacts.
+/DynamoBOT/build/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/install_manifest*.txt
+**/compile_commands.json
+**/Testing/
+**/_deps/
+**/*.dir/
+**/*.obj
+**/*.o
+**/*.pdb
+**/*.ilk
+**/*.lib
+**/*.exp
+**/*.dll
+**/*.exe
+**/*.recipe
+**/*.tlog
+**/*.lastbuildstate
+**/*.filters
+**/*.vcxproj
+**/*.vcxproj.user
+**/*.vcxproj.filters
+**/*.sln
+
+# .NET / Avalonia build artifacts.
+/DynamoGUI/bin/
+/DynamoGUI/obj/
+**/*.deps.json
+**/*.runtimeconfig.json
+**/*.nuget.dgspec.json
+**/*.nuget.g.props
+**/*.nuget.g.targets
+**/project.assets.json
+**/project.nuget.cache
+
+# Logs and local runtime output.
+**/*.log
+**/backend-smoke.*
+**/relation-audit.out
+**/relation-audit.err
+**/errory.txt
+
+# Local profiles: keep only the shipped default profile in source control.
+/DynamoBOT/config/profiles/*
+!/DynamoBOT/config/profiles/default.json

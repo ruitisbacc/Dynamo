@@ -1,0 +1,103 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DynamoGUI.ViewModels"
+        x:Class="DynamoGUI.Views.LoginWindow"
+        x:DataType="vm:LoginViewModel"
+        Title="Dynamo"
+        Icon="/Assets/dynamo.ico"
+        Width="420" Height="520"
+        CanResize="False"
+        WindowStartupLocation="CenterScreen"
+        Background="{StaticResource AppBgBrush}">
+
+  <Grid VerticalAlignment="Center" HorizontalAlignment="Center">
+    <Border Background="{StaticResource CardBgBrush}"
+            BorderBrush="{StaticResource CardBorderBrush}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Padding="32,28"
+            Width="360">
+      <StackPanel Spacing="20">
+
+        <!-- Title -->
+        <StackPanel Spacing="4" HorizontalAlignment="Center" Margin="0,0,0,4">
+          <TextBlock Text="Dynamo"
+                     FontSize="26" FontWeight="Bold"
+                     Foreground="{StaticResource AccentBrush}"
+                     HorizontalAlignment="Center" />
+          <TextBlock Text="War Universe Bot"
+                     FontSize="12"
+                     Foreground="{StaticResource TextMutedBrush}"
+                     HorizontalAlignment="Center" />
+        </StackPanel>
+
+        <!-- Username -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="Username" FontSize="12" FontWeight="Medium"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+          <TextBox Classes="input"
+                   Text="{Binding Username}"
+                   Watermark="Enter your username"
+                   IsEnabled="{Binding !IsBusy}" />
+        </StackPanel>
+
+        <!-- Password -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="Password" FontSize="12" FontWeight="Medium"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+          <TextBox Classes="input"
+                   Text="{Binding Password}"
+                   PasswordChar="*"
+                   Watermark="Enter your password"
+                   IsEnabled="{Binding !IsBusy}" />
+        </StackPanel>
+
+        <!-- Server -->
+        <StackPanel Spacing="6">
+          <TextBlock Text="Server" FontSize="12" FontWeight="Medium"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+          <ComboBox Classes="input"
+                    ItemsSource="{Binding Servers}"
+                    SelectedItem="{Binding SelectedServer}"
+                    HorizontalAlignment="Stretch"
+                    IsEnabled="{Binding !IsBusy}">
+            <ComboBox.ItemTemplate>
+              <DataTemplate>
+                <TextBlock Text="{Binding Name}" />
+              </DataTemplate>
+            </ComboBox.ItemTemplate>
+          </ComboBox>
+          <ProgressBar IsIndeterminate="True"
+                       IsVisible="{Binding IsLoadingServers}"
+                       Height="2" Margin="0,-4,0,0" />
+        </StackPanel>
+
+        <!-- Error message -->
+        <TextBlock Text="{Binding ErrorMessage}"
+                   IsVisible="{Binding ErrorMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                   Foreground="{StaticResource RedBrush}"
+                   FontSize="12"
+                   TextWrapping="Wrap" />
+
+        <!-- Login button -->
+        <Button Classes="primary"
+                Command="{Binding LoginCommand}"
+                HorizontalAlignment="Stretch"
+                Height="42">
+          <Panel>
+            <TextBlock Text="Login"
+                       IsVisible="{Binding !IsBusy}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+            <TextBlock Text="{Binding StatusText}"
+                       IsVisible="{Binding IsBusy}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       FontSize="13" />
+          </Panel>
+        </Button>
+
+      </StackPanel>
+    </Border>
+  </Grid>
+</Window>

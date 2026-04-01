@@ -1,0 +1,278 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+  <Styles.Resources>
+    <!-- Color Palette -->
+    <Color x:Key="AppBg">#0B1120</Color>
+    <Color x:Key="SidebarBg">#0F1629</Color>
+    <Color x:Key="CardBg">#111827</Color>
+    <Color x:Key="CardBorder">#1E293B</Color>
+    <Color x:Key="HeaderBg">#0D1424</Color>
+    <Color x:Key="FooterBg">#080E1A</Color>
+    <Color x:Key="InputBg">#1E293B</Color>
+    <Color x:Key="InputBorder">#334155</Color>
+    <Color x:Key="InputFocusBorder">#3B82F6</Color>
+
+    <Color x:Key="TextPrimary">#E2E8F0</Color>
+    <Color x:Key="TextSecondary">#94A3B8</Color>
+    <Color x:Key="TextMuted">#64748B</Color>
+
+    <Color x:Key="Accent">#3B82F6</Color>
+    <Color x:Key="AccentHover">#2563EB</Color>
+    <Color x:Key="AccentSubtle">#1E3A5F</Color>
+    <Color x:Key="Green">#22C55E</Color>
+    <Color x:Key="GreenSubtle">#14532D</Color>
+    <Color x:Key="Red">#EF4444</Color>
+    <Color x:Key="RedSubtle">#7F1D1D</Color>
+    <Color x:Key="Yellow">#EAB308</Color>
+    <Color x:Key="YellowSubtle">#713F12</Color>
+    <Color x:Key="Cyan">#06B6D4</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="AppBgBrush" Color="{StaticResource AppBg}" />
+    <SolidColorBrush x:Key="SidebarBgBrush" Color="{StaticResource SidebarBg}" />
+    <SolidColorBrush x:Key="CardBgBrush" Color="{StaticResource CardBg}" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="{StaticResource CardBorder}" />
+    <SolidColorBrush x:Key="HeaderBgBrush" Color="{StaticResource HeaderBg}" />
+    <SolidColorBrush x:Key="FooterBgBrush" Color="{StaticResource FooterBg}" />
+    <SolidColorBrush x:Key="InputBgBrush" Color="{StaticResource InputBg}" />
+    <SolidColorBrush x:Key="InputBorderBrush" Color="{StaticResource InputBorder}" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimary}" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondary}" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="{StaticResource TextMuted}" />
+    <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource Accent}" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHover}" />
+    <SolidColorBrush x:Key="AccentSubtleBrush" Color="{StaticResource AccentSubtle}" />
+    <SolidColorBrush x:Key="GreenBrush" Color="{StaticResource Green}" />
+    <SolidColorBrush x:Key="GreenSubtleBrush" Color="{StaticResource GreenSubtle}" />
+    <SolidColorBrush x:Key="RedBrush" Color="{StaticResource Red}" />
+    <SolidColorBrush x:Key="RedSubtleBrush" Color="{StaticResource RedSubtle}" />
+    <SolidColorBrush x:Key="YellowBrush" Color="{StaticResource Yellow}" />
+    <SolidColorBrush x:Key="CyanBrush" Color="{StaticResource Cyan}" />
+  </Styles.Resources>
+
+  <!-- Global TextBlock style -->
+  <Style Selector="TextBlock">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="FontFamily" Value="Inter, Segoe UI, sans-serif" />
+  </Style>
+
+  <!-- Input TextBox -->
+  <Style Selector="TextBox.input">
+    <Setter Property="Background" Value="{StaticResource InputBgBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="CaretBrush" Value="{StaticResource TextPrimaryBrush}" />
+  </Style>
+
+  <Style Selector="TextBox.input:focus /template/ Border#PART_BorderElement">
+    <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
+  </Style>
+
+  <!-- ComboBox -->
+  <Style Selector="ComboBox.input">
+    <Setter Property="Background" Value="{StaticResource InputBgBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource InputBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="MinHeight" Value="38" />
+  </Style>
+
+  <!-- Primary Button -->
+  <Style Selector="Button.primary">
+    <Setter Property="Background" Value="{StaticResource AccentBrush}" />
+    <Setter Property="Foreground" Value="White" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="20,10" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.primary:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="{StaticResource AccentHoverBrush}" />
+  </Style>
+  <Style Selector="Button.primary:disabled /template/ ContentPresenter">
+    <Setter Property="Opacity" Value="0.5" />
+  </Style>
+
+  <!-- Danger Button -->
+  <Style Selector="Button.danger">
+    <Setter Property="Background" Value="{StaticResource RedSubtleBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource RedBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+
+  <!-- Success Button -->
+  <Style Selector="Button.success">
+    <Setter Property="Background" Value="{StaticResource GreenSubtleBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource GreenBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="16,8" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+
+  <!-- Ghost Button (sidebar nav) -->
+  <Style Selector="Button.ghost">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+  <Style Selector="Button.ghost:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#15FFFFFF" />
+  </Style>
+
+  <!-- Nav item selected -->
+  <Style Selector="Button.nav-active">
+    <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="10,8" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+  </Style>
+
+  <!-- Header control button -->
+  <Style Selector="Button.header-btn">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Padding" Value="12,6" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.header-btn:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#15FFFFFF" />
+  </Style>
+
+  <Style Selector="Button.workspace-tab">
+    <Setter Property="Background" Value="#0F1A2B" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="14,8" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.workspace-tab:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#162338" />
+  </Style>
+  <Style Selector="Button.workspace-tab.selected">
+    <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    <Setter Property="BorderBrush" Value="#214872" />
+  </Style>
+
+  <Style Selector="Button.nav">
+    <Setter Property="Background" Value="#0F1A2B" />
+    <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Cursor" Value="Hand" />
+  </Style>
+  <Style Selector="Button.nav:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="#162338" />
+  </Style>
+  <Style Selector="Button.nav.selected">
+    <Setter Property="Background" Value="{StaticResource AccentSubtleBrush}" />
+    <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+    <Setter Property="BorderBrush" Value="#214872" />
+  </Style>
+
+  <!-- Card container -->
+  <Style Selector="Border.card">
+    <Setter Property="Background" Value="{StaticResource CardBgBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Padding" Value="16" />
+  </Style>
+
+  <Style Selector="Border.shell-surface">
+    <Setter Property="Background" Value="{StaticResource CardBgBrush}" />
+    <Setter Property="BorderBrush" Value="{StaticResource CardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="14" />
+  </Style>
+
+  <Style Selector="Border.hud-surface">
+    <Setter Property="Background" Value="#CC08111D" />
+    <Setter Property="BorderBrush" Value="#24354B" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Padding" Value="12,10" />
+  </Style>
+
+  <Style Selector="Border.metric-box">
+    <Setter Property="Background" Value="#0E1828" />
+    <Setter Property="BorderBrush" Value="#1A2940" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="12,10" />
+  </Style>
+
+  <!-- Stat label -->
+  <Style Selector="TextBlock.stat-label">
+    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    <Setter Property="FontSize" Value="11" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+
+  <Style Selector="TextBlock.hud-label">
+    <Setter Property="Foreground" Value="{StaticResource TextMutedBrush}" />
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+  </Style>
+
+  <Style Selector="TextBlock.stat-value">
+    <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}" />
+    <Setter Property="FontSize" Value="18" />
+    <Setter Property="FontWeight" Value="Bold" />
+  </Style>
+
+  <!-- Status pill -->
+  <Style Selector="Border.pill">
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="10,4" />
+  </Style>
+
+  <!-- Separator -->
+  <Style Selector="Border.separator">
+    <Setter Property="Background" Value="{StaticResource CardBorderBrush}" />
+    <Setter Property="Height" Value="1" />
+  </Style>
+
+</Styles>

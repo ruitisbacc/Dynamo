@@ -1,0 +1,404 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DynamoGUI.ViewModels"
+        xmlns:views="using:DynamoGUI.Views"
+        xmlns:controls="using:DynamoGUI.Controls"
+        x:Class="DynamoGUI.Views.MainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="Dynamo"
+        Icon="/Assets/dynamo.ico"
+        Width="1100"
+        Height="720"
+        MinWidth="860"
+        MinHeight="560"
+        Background="{StaticResource AppBgBrush}">
+
+  <Grid RowDefinitions="Auto,*">
+
+    <!-- ═══ Single Toolbar ═══ -->
+    <Border Grid.Row="0"
+            Background="{StaticResource HeaderBgBrush}"
+            BorderBrush="{StaticResource CardBorderBrush}"
+            BorderThickness="0,0,0,1"
+            Padding="12,6">
+      <Grid ColumnDefinitions="Auto,Auto,*,Auto">
+
+        <!-- Brand -->
+        <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <TextBlock Text="Dynamo"
+                     FontSize="16"
+                     FontWeight="Bold"
+                     Foreground="{StaticResource AccentBrush}" />
+          <Ellipse Width="8" Height="8" VerticalAlignment="Center">
+            <Ellipse.Fill>
+              <SolidColorBrush Color="{Binding ConnectionDotColor}" />
+            </Ellipse.Fill>
+          </Ellipse>
+        </StackPanel>
+
+        <!-- Tabs -->
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="4"
+                    Margin="16,0,0,0"
+                    VerticalAlignment="Center">
+          <Button Classes="workspace-tab"
+                  Classes.selected="{Binding IsDashboardSection}"
+                  Tag="Dashboard"
+                  Content="Main"
+                  Click="OnNavigateClick" />
+          <Button Classes="workspace-tab"
+                  Classes.selected="{Binding IsStatsSection}"
+                  Tag="Stats"
+                  Content="Stats"
+                  Click="OnNavigateClick" />
+          <Button Classes="workspace-tab"
+                  Classes.selected="{Binding IsProfilesSection}"
+                  Tag="Profiles"
+                  Content="Profiles"
+                  Click="OnNavigateClick" />
+        </StackPanel>
+
+        <!-- Center status: map + profile + config only -->
+        <StackPanel Grid.Column="2"
+                    Orientation="Horizontal"
+                    Spacing="8"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+          <TextBlock Text="{Binding CurrentMap}" FontSize="11" FontWeight="SemiBold" />
+          <TextBlock Text="·" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="{Binding ActiveProfile}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="·" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+          <TextBlock Text="{Binding ConfigLabel}" FontSize="11" Foreground="{StaticResource TextMutedBrush}" />
+        </StackPanel>
+
+        <!-- Actions -->
+        <StackPanel Grid.Column="3"
+                    Orientation="Horizontal"
+                    Spacing="6"
+                    VerticalAlignment="Center">
+          <Button Classes="success" Content="Start" IsEnabled="{Binding CanStartBot}" Click="OnStartClick" />
+          <Button Classes="header-btn" Content="Pause" IsEnabled="{Binding CanPauseBot}" Click="OnPauseClick" />
+          <Button Classes="danger" Content="Stop" IsEnabled="{Binding CanStopBot}" Click="OnStopClick" />
+          <Button Classes="header-btn" Content="Disconnect" Click="OnDisconnectClick" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <!-- ═══ Content ═══ -->
+    <Grid Grid.Row="1">
+
+      <!-- ── Dashboard: Map fills the window ── -->
+      <Grid IsVisible="{Binding IsDashboardSection}">
+        <Grid RowDefinitions="*,Auto">
+
+          <!-- Map area -->
+          <Grid Grid.Row="0" ClipToBounds="True">
+            <controls:TacticalMapView x:Name="MapView"
+                                      HeroX="{Binding HeroX}"
+                                      HeroY="{Binding HeroY}"
+                                      HeroTargetX="{Binding HeroTargetX}"
+                                      HeroTargetY="{Binding HeroTargetY}"
+                                      HeroMoving="{Binding HeroMoving}"
+                                      MapWidth="{Binding MapWidth}"
+                                      MapHeight="{Binding MapHeight}"
+                                      HasTarget="{Binding HasTarget}"
+                                      TargetX="{Binding TargetX}"
+                                      TargetY="{Binding TargetY}"
+                                      ActiveConfig="{Binding ActiveConfig}"
+                                      MapEntities="{Binding MapEntities}" />
+
+            <!-- Top-right HUD: Safety alert (only when active) -->
+            <Border Classes="hud-surface"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Top"
+                    Margin="0,14,14,0"
+                    IsVisible="{Binding SafetyActive}">
+              <StackPanel Orientation="Horizontal" Spacing="6">
+                <Ellipse Width="6" Height="6" Fill="{StaticResource RedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding SafetyReason}"
+                           FontSize="11"
+                           Foreground="{StaticResource RedBrush}"
+                           MaxWidth="200"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding BotRuntimeDisplay}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Margin="0,44,0,0"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       FontFamily="Consolas, Cascadia Code, monospace"
+                       Foreground="{Binding BotRuntimeBrush}" />
+
+            <!-- Bottom-left HUD: Hero info (DOPE style - name, HP, shield) -->
+            <Border Classes="hud-surface"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Bottom"
+                    Margin="14,0,0,14">
+              <StackPanel Spacing="4" MinWidth="140">
+                <TextBlock Text="{Binding HeroName}" FontSize="12" FontWeight="SemiBold"
+                           Foreground="{StaticResource CyanBrush}" />
+                <!-- HP bar -->
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="6">
+                  <TextBlock Text="HP" FontSize="9" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Background="#3C1E1E" CornerRadius="2" Height="8" MinWidth="80">
+                    <Border Background="#EF4444" CornerRadius="2" HorizontalAlignment="Left">
+                      <Border.Width>
+                        <MultiBinding Converter="{x:Static controls:PercentWidthConverter.Instance}">
+                          <Binding Path="HpPercent" />
+                          <Binding Source="80" />
+                        </MultiBinding>
+                      </Border.Width>
+                    </Border>
+                  </Border>
+                  <TextBlock Grid.Column="2" Text="{Binding HpPercent, StringFormat='{}{0}%'}"
+                             FontSize="9" FontFamily="Consolas" Width="30" TextAlignment="Right" />
+                </Grid>
+                <!-- Shield bar -->
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="6">
+                  <TextBlock Text="SHD" FontSize="9" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Background="#1E2840" CornerRadius="2" Height="8" MinWidth="80">
+                    <Border Background="#3B82F6" CornerRadius="2" HorizontalAlignment="Left">
+                      <Border.Width>
+                        <MultiBinding Converter="{x:Static controls:PercentWidthConverter.Instance}">
+                          <Binding Path="ShieldPercent" />
+                          <Binding Source="80" />
+                        </MultiBinding>
+                      </Border.Width>
+                    </Border>
+                  </Border>
+                  <TextBlock Grid.Column="2" Text="{Binding ShieldPercent, StringFormat='{}{0}%'}"
+                             FontSize="9" FontFamily="Consolas" Width="30" TextAlignment="Right" />
+                </Grid>
+              </StackPanel>
+            </Border>
+
+            <!-- Bottom-right HUD: Target info (when locked) -->
+            <Border Classes="hud-surface"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Bottom"
+                    Margin="0,0,14,14"
+                    IsVisible="{Binding HasTarget}">
+              <StackPanel Spacing="4" MinWidth="140">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                  <TextBlock Text="{Binding CurrentTarget}" FontSize="12" FontWeight="SemiBold"
+                             Foreground="{StaticResource YellowBrush}"
+                             MaxWidth="160" TextTrimming="CharacterEllipsis" />
+                  <TextBlock Text="{Binding TargetCategory}" FontSize="9"
+                             Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                </StackPanel>
+                <!-- Target HP bar -->
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="6">
+                  <TextBlock Text="HP" FontSize="9" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Background="#3C1E1E" CornerRadius="2" Height="8" MinWidth="80">
+                    <Border Background="#EF4444" CornerRadius="2" HorizontalAlignment="Left">
+                      <Border.Width>
+                        <MultiBinding Converter="{x:Static controls:PercentWidthConverter.Instance}">
+                          <Binding Path="TargetHpPercent" />
+                          <Binding Source="80" />
+                        </MultiBinding>
+                      </Border.Width>
+                    </Border>
+                  </Border>
+                  <TextBlock Grid.Column="2" Text="{Binding TargetHpPercent, StringFormat='{}{0}%'}"
+                             FontSize="9" FontFamily="Consolas" Width="30" TextAlignment="Right" />
+                </Grid>
+                <!-- Target Shield bar -->
+                <Grid ColumnDefinitions="28,*,Auto" ColumnSpacing="6">
+                  <TextBlock Text="SHD" FontSize="9" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                  <Border Grid.Column="1" Background="#1E2840" CornerRadius="2" Height="8" MinWidth="80">
+                    <Border Background="#3B82F6" CornerRadius="2" HorizontalAlignment="Left">
+                      <Border.Width>
+                        <MultiBinding Converter="{x:Static controls:PercentWidthConverter.Instance}">
+                          <Binding Path="TargetShieldPercent" />
+                          <Binding Source="80" />
+                        </MultiBinding>
+                      </Border.Width>
+                    </Border>
+                  </Border>
+                  <TextBlock Grid.Column="2" Text="{Binding TargetShieldPercent, StringFormat='{}{0}%'}"
+                             FontSize="9" FontFamily="Consolas" Width="30" TextAlignment="Right" />
+                </Grid>
+                <TextBlock Text="{Binding TargetDistance, StringFormat='Distance: {0}u'}"
+                           FontSize="9" Foreground="{StaticResource TextMutedBrush}" />
+              </StackPanel>
+            </Border>
+          </Grid>
+
+          <!-- Bottom status bar -->
+          <Border Grid.Row="1"
+                  Background="{StaticResource HeaderBgBrush}"
+                  BorderBrush="{StaticResource CardBorderBrush}"
+                  BorderThickness="0,1,0,0"
+                  Padding="12,5">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto,Auto">
+
+              <!-- Left: Cargo -->
+              <StackPanel Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="CRG" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Width="26" VerticalAlignment="Center" />
+                <Border Background="#1A2218" CornerRadius="3" Width="60" Height="8" VerticalAlignment="Center">
+                  <Border Background="{StaticResource GreenBrush}"
+                          CornerRadius="3"
+                          HorizontalAlignment="Left">
+                    <Border.Width>
+                      <MultiBinding Converter="{x:Static controls:PercentWidthConverter.Instance}">
+                        <Binding Path="CargoPercent" />
+                        <Binding Source="60" />
+                      </MultiBinding>
+                    </Border.Width>
+                  </Border>
+                </Border>
+                <TextBlock Text="{Binding CargoPercent, StringFormat='{}{0}%'}" FontSize="10" FontFamily="Consolas" Width="30" VerticalAlignment="Center" />
+              </StackPanel>
+
+              <!-- Deaths -->
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4" Margin="14,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="Deaths" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding DeathCount}" FontSize="10" FontFamily="Consolas" FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+
+              <!-- Spacer -->
+              <Panel Grid.Column="2" />
+
+              <!-- BTC -->
+              <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="4" VerticalAlignment="Center">
+                <TextBlock Text="BTC" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Btc, StringFormat='{}{0:N0}'}" FontSize="10" FontFamily="Consolas" FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+
+              <!-- PLT -->
+              <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="PLT" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Plt, StringFormat='{}{0:N0}'}" FontSize="10" FontFamily="Consolas" FontWeight="SemiBold" VerticalAlignment="Center" />
+              </StackPanel>
+
+              <!-- Ammo -->
+              <StackPanel Grid.Column="5" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="{Binding CurrentLaser}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="/" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding CurrentRocket}" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+              </StackPanel>
+
+              <!-- Honor + EXP -->
+              <StackPanel Grid.Column="6" Orientation="Horizontal" Spacing="4" Margin="12,0,0,0" VerticalAlignment="Center">
+                <TextBlock Text="HON" FontSize="10" Foreground="{StaticResource TextMutedBrush}" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Honor, StringFormat='{}{0:N0}'}" FontSize="10" FontFamily="Consolas" VerticalAlignment="Center" />
+                <TextBlock Text="EXP" FontSize="10" Foreground="{StaticResource TextMutedBrush}" Margin="8,0,0,0" VerticalAlignment="Center" />
+                <TextBlock Text="{Binding Experience, StringFormat='{}{0:N0}'}" FontSize="10" FontFamily="Consolas" VerticalAlignment="Center" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </Grid>
+      </Grid>
+
+      <!-- ── Stats ── -->
+      <Grid IsVisible="{Binding IsStatsSection}"
+            Margin="12"
+            RowDefinitions="Auto,*"
+            RowSpacing="10">
+        <Border Classes="shell-surface" Padding="16,14">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+            <StackPanel Spacing="4">
+              <TextBlock Text="Run Stats" FontSize="15" FontWeight="SemiBold" />
+              <TextBlock Text="Session resets on a fresh start after stop. Pause and resume keep the current session."
+                         FontSize="11"
+                         Foreground="{StaticResource TextMutedBrush}" />
+            </StackPanel>
+            <StackPanel Grid.Column="1" Spacing="2" HorizontalAlignment="Right">
+              <TextBlock Text="Runtime"
+                         FontSize="10"
+                         FontWeight="SemiBold"
+                         Foreground="{StaticResource TextMutedBrush}"
+                         HorizontalAlignment="Right" />
+              <TextBlock Text="{Binding BotRuntimeDisplay}"
+                         FontSize="18"
+                         FontWeight="SemiBold"
+                         FontFamily="Consolas, Cascadia Code, monospace"
+                         Foreground="{Binding BotRuntimeBrush}"
+                         HorizontalAlignment="Right" />
+            </StackPanel>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="shell-surface" Padding="0">
+          <ScrollViewer VerticalScrollBarVisibility="Auto">
+            <ItemsControl ItemsSource="{Binding StatsSections}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <StackPanel Spacing="12" Margin="12" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:StatsSectionViewModel">
+                  <Border Classes="shell-surface" Padding="16,14">
+                    <StackPanel Spacing="10">
+                      <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
+                        <TextBlock Text="{Binding Title}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1"
+                                   Text="Session"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   HorizontalAlignment="Right" />
+                        <TextBlock Grid.Column="2"
+                                   Text="Total"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextMutedBrush}"
+                                   HorizontalAlignment="Right" />
+                      </Grid>
+
+                      <Border Classes="separator" />
+
+                      <ItemsControl ItemsSource="{Binding Rows}">
+                        <ItemsControl.ItemsPanel>
+                          <ItemsPanelTemplate>
+                            <StackPanel Spacing="6" />
+                          </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:StatsEntryViewModel">
+                            <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
+                              <TextBlock Text="{Binding Label}"
+                                         FontSize="12" />
+                              <TextBlock Grid.Column="1"
+                                         Text="{Binding SessionDisplay}"
+                                         FontSize="12"
+                                         FontFamily="Consolas, Cascadia Code, monospace"
+                                         Foreground="{Binding SessionBrush}"
+                                         HorizontalAlignment="Right" />
+                              <TextBlock Grid.Column="2"
+                                         Text="{Binding TotalDisplay}"
+                                         FontSize="12"
+                                         FontFamily="Consolas, Cascadia Code, monospace"
+                                         HorizontalAlignment="Right" />
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </ScrollViewer>
+        </Border>
+      </Grid>
+
+      <!-- ── Profiles ── -->
+      <Border IsVisible="{Binding IsProfilesSection}"
+              Margin="12"
+              Classes="shell-surface"
+              Padding="12">
+        <views:ProfileEditorView DataContext="{Binding ProfileEditor}" />
+      </Border>
+
+      <!-- ── Logs ── -->
+    </Grid>
+  </Grid>
+</Window>

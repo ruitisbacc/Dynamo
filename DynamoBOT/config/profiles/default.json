@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "id": "default",
+  "displayName": "Default",
+  "workingMap": "R-1",
+  "configSlots": {
+    "roaming": 1,
+    "flying": 2,
+    "shooting": 1
+  },
+  "kill": true,
+  "collect": true,
+  "collectDuringCombat": true,
+  "boxTypes": [],
+  "avoidMaps": [],
+  "npcRules": [
+    {
+      "npcName": "Hydro",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Jenta",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Mali",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Plarion",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Motron",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Xeon",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Bangoliour",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Zavientos",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Magmius",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Raider",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Vortex",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    },
+    {
+      "npcName": "Quattroid",
+      "defaultVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "hyperVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 },
+      "ultraVariant": { "enabled": false, "ammoType": 1, "rocketType": 0 }
+    }
+  ],
+  "safety": {
+    "emergencyHpPercent": 15,
+    "repairHpPercent": 70,
+    "fullHpPercent": 100,
+    "fleeMode": "OnEnemySeen"
+  },
+  "adminDisconnect": {
+    "enabled": true,
+    "cooldownMinutes": 5
+  },
+  "deathDisconnect": {
+    "enabled": false,
+    "deathThreshold": 5,
+    "cooldownMinutes": 15
+  }
+}
