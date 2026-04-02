@@ -726,6 +726,26 @@ BackendStatusSnapshot BackendHost::buildStatusSnapshot() {
     snapshot.currentLaser = laserName(hero.currentAmmoType);
     snapshot.currentRocket = rocketName(hero.currentRocketType);
     snapshot.currentResources = resourceInventoryFromState(resources);
+
+    if (resources.hasResourcesInfo) {
+        static constexpr std::pair<dynamo::ResourceModuleType, const char*> moduleNames[] = {
+            {dynamo::ResourceModuleType::Lasers, "Lasers"},
+            {dynamo::ResourceModuleType::Rockets, "Rockets"},
+            {dynamo::ResourceModuleType::Shields, "Shields"},
+            {dynamo::ResourceModuleType::Speed, "Speed"},
+        };
+        for (const auto& [moduleType, moduleName] : moduleNames) {
+            const auto* enrichment = resources.findEnrichment(static_cast<int32_t>(moduleType));
+            host::EnrichmentModuleSnapshot enrichSnap;
+            enrichSnap.module = moduleName;
+            if (enrichment && enrichment->amount > 0 && dynamo::isValidResourceType(enrichment->type)) {
+                enrichSnap.material = dynamo::resourceTypeName(static_cast<dynamo::ResourceType>(enrichment->type));
+                enrichSnap.amount = enrichment->amount;
+            }
+            snapshot.enrichments.push_back(std::move(enrichSnap));
+        }
+    }
+
     snapshot.npcCount = static_cast<int>(entities.npcs.size());
     snapshot.enemyCount = static_cast<int>(entities.enemies.size());
     snapshot.boxCount = static_cast<int>(entities.boxes.size());

@@ -124,7 +124,7 @@ struct DeathDisconnectPolicy {
 NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(DeathDisconnectPolicy, enabled, deathThreshold, cooldownMinutes)
 
 struct BotProfile {
-    int32_t schemaVersion{1};
+    int32_t schemaVersion{2};
     std::string id{"default"};
     std::string displayName{"Default"};
     std::string workingMap{"R-1"};
@@ -138,9 +138,10 @@ struct BotProfile {
     SafetyPolicy safety;
     AdminDisconnectPolicy adminDisconnect;
     DeathDisconnectPolicy deathDisconnect;
+    ResourceAutomationSettings resources;
     AutobuyConfig autobuy;
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(BotProfile, schemaVersion, id, displayName, workingMap, configSlots, kill, collect, collectDuringCombat, boxTypes, avoidMaps, npcRules, safety, adminDisconnect, deathDisconnect, autobuy)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(BotProfile, schemaVersion, id, displayName, workingMap, configSlots, kill, collect, collectDuringCombat, boxTypes, avoidMaps, npcRules, safety, adminDisconnect, deathDisconnect, resources, autobuy)
 
 struct NpcRegistryEntry {
     std::string name;

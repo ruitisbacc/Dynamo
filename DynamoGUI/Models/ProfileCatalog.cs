@@ -46,6 +46,20 @@ public sealed class SafetyFleeModeOption
     public override string ToString() => Label;
 }
 
+public sealed class EnrichmentMaterialOption
+{
+    public EnrichmentMaterialOption(EnrichmentMaterial value, string label)
+    {
+        Value = value;
+        Label = label;
+    }
+
+    public EnrichmentMaterial Value { get; }
+    public string Label { get; }
+
+    public override string ToString() => Label;
+}
+
 public static class ProfileCatalog
 {
     public static readonly IReadOnlyList<IntOption> SlotOptions =
@@ -77,6 +91,28 @@ public static class ProfileCatalog
         new SafetyFleeModeOption(SafetyFleeMode.None, "Disabled"),
         new SafetyFleeModeOption(SafetyFleeMode.OnAttack, "Flee on attack"),
         new SafetyFleeModeOption(SafetyFleeMode.OnEnemySeen, "Flee on enemy seen"),
+    ];
+
+    public static readonly IReadOnlyList<IntOption> ResourcePriorityOptions =
+    [
+        new IntOption(1, "1"),
+        new IntOption(2, "2"),
+        new IntOption(3, "3"),
+        new IntOption(4, "4"),
+    ];
+
+    public static readonly IReadOnlyList<EnrichmentMaterialOption> LaserRocketEnrichmentOptions =
+    [
+        new EnrichmentMaterialOption(EnrichmentMaterial.Darkonit, "Darkonit"),
+        new EnrichmentMaterialOption(EnrichmentMaterial.Uranit, "Uranit"),
+        new EnrichmentMaterialOption(EnrichmentMaterial.Dungid, "Dungid"),
+    ];
+
+    public static readonly IReadOnlyList<EnrichmentMaterialOption> ShieldSpeedEnrichmentOptions =
+    [
+        new EnrichmentMaterialOption(EnrichmentMaterial.Uranit, "Uranit"),
+        new EnrichmentMaterialOption(EnrichmentMaterial.Azurit, "Azurit"),
+        new EnrichmentMaterialOption(EnrichmentMaterial.Xureon, "Xureon"),
     ];
 
     // Mirrors the backend map graph and NPC registry so the editor does not invent map ids locally.
@@ -116,6 +152,15 @@ public static class ProfileCatalog
 
     public static SafetyFleeModeOption FindSafetyFleeModeOption(SafetyFleeMode value) =>
         SafetyFleeModeOptions.FirstOrDefault(option => option.Value == value) ?? SafetyFleeModeOptions[2];
+
+    public static IntOption FindResourcePriorityOption(int value) =>
+        ResourcePriorityOptions.FirstOrDefault(option => option.Value == value) ?? ResourcePriorityOptions[0];
+
+    public static EnrichmentMaterialOption FindLaserRocketEnrichmentOption(EnrichmentMaterial value) =>
+        LaserRocketEnrichmentOptions.FirstOrDefault(option => option.Value == value) ?? LaserRocketEnrichmentOptions[0];
+
+    public static EnrichmentMaterialOption FindShieldSpeedEnrichmentOption(EnrichmentMaterial value) =>
+        ShieldSpeedEnrichmentOptions.FirstOrDefault(option => option.Value == value) ?? ShieldSpeedEnrichmentOptions[0];
 
     public static NpcCatalogEntry? FindNpc(string name) =>
         Npcs.FirstOrDefault(entry => string.Equals(entry.Name, name, StringComparison.Ordinal));

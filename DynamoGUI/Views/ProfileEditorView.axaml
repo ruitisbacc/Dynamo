@@ -7,7 +7,7 @@
   <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="2,0">
     <StackPanel Spacing="8" MaxWidth="720">
 
-      <!-- ═══ Profile Bar ═══ -->
+      <!-- Profile Bar -->
       <Border Classes="card">
         <StackPanel Spacing="6">
           <StackPanel Orientation="Horizontal" Spacing="8">
@@ -21,7 +21,7 @@
         </StackPanel>
       </Border>
 
-      <!-- ═══ General ═══ -->
+      <!-- General -->
       <Border Classes="card">
         <StackPanel Spacing="8">
           <TextBlock Text="GENERAL" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
@@ -38,7 +38,7 @@
         </StackPanel>
       </Border>
 
-      <!-- ═══ Config Slots ═══ -->
+      <!-- Config Slots -->
       <Border Classes="card">
         <StackPanel Spacing="6">
           <TextBlock Text="CONFIG SLOTS" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
@@ -53,7 +53,7 @@
         </StackPanel>
       </Border>
 
-      <!-- ═══ Collection ═══ -->
+      <!-- Collection -->
       <Border Classes="card">
         <StackPanel Spacing="6">
           <TextBlock Text="COLLECTION" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
@@ -65,7 +65,53 @@
         </StackPanel>
       </Border>
 
-      <!-- ═══ Safety ═══ -->
+      <!-- Resources -->
+      <Border Classes="card">
+        <StackPanel Spacing="8">
+          <TextBlock Text="RESOURCES" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
+          <CheckBox Content="Enable resource automation" IsChecked="{Binding ResourceAutomationEnabled}" FontSize="12" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <TextBlock Text="Refine interval (sec)" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBox Classes="input" Text="{Binding RefineIntervalSeconds}" Width="50" FontSize="12" IsEnabled="{Binding IsRefineIntervalEnabled}" />
+          </StackPanel>
+          <CheckBox Content="Sell cargo when no more refine/enrich is possible"
+                    IsChecked="{Binding SellCargoWhenBlocked}"
+                    IsEnabled="{Binding IsSellCargoEnabled}"
+                    FontSize="12" />
+          <TextBlock Text="Refine and enrich run periodically. When cargo is 100%, the bot will also sell if no more space can be freed."
+                     FontSize="11"
+                     TextWrapping="Wrap"
+                     Foreground="{StaticResource TextSecondaryBrush}" />
+          <Grid ColumnDefinitions="120,70,150,80" ColumnSpacing="10">
+            <TextBlock Text="Module" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock Grid.Column="1" Text="Enable" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock Grid.Column="2" Text="Material" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+            <TextBlock Grid.Column="3" Text="Priority" FontSize="11" FontWeight="Bold" Foreground="{StaticResource TextSecondaryBrush}" />
+          </Grid>
+          <ItemsControl ItemsSource="{Binding ResourceModules}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ResourceModuleSettingViewModel">
+                <Grid ColumnDefinitions="120,70,150,80" ColumnSpacing="10" Margin="0,2,0,0">
+                  <TextBlock Text="{Binding Label}" FontSize="12" VerticalAlignment="Center" />
+                  <CheckBox Grid.Column="1" IsChecked="{Binding Enabled}" VerticalAlignment="Center" />
+                  <ComboBox Grid.Column="2"
+                            Classes="input"
+                            ItemsSource="{Binding MaterialOptions}"
+                            SelectedItem="{Binding SelectedMaterial}"
+                            IsEnabled="{Binding IsEditable}" />
+                  <ComboBox Grid.Column="3"
+                            Classes="input"
+                            ItemsSource="{Binding PriorityOptions}"
+                            SelectedItem="{Binding SelectedPriority}"
+                            IsEnabled="{Binding IsEditable}" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+
+      <!-- Safety -->
       <Border Classes="card">
         <StackPanel Spacing="8">
           <TextBlock Text="SAFETY" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
@@ -86,18 +132,16 @@
         </StackPanel>
       </Border>
 
-      <!-- ═══ Disconnect Policies ═══ -->
+      <!-- Disconnect Policies -->
       <Border Classes="card">
         <StackPanel Spacing="8">
           <TextBlock Text="DISCONNECT POLICIES" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
-          <!-- Admin -->
           <StackPanel Orientation="Horizontal" Spacing="8">
             <CheckBox Content="Admin disconnect" IsChecked="{Binding AdminDisconnectEnabled}" FontSize="12" VerticalAlignment="Center" />
             <TextBlock Text="Triggers on &gt;8 drones" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
             <TextBlock Text="Cooldown min" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
             <TextBox Classes="input" Text="{Binding AdminCooldownMinutes}" Width="40" FontSize="12" IsEnabled="{Binding AreAdminFieldsEnabled}" />
           </StackPanel>
-          <!-- Death -->
           <StackPanel Orientation="Horizontal" Spacing="8">
             <CheckBox Content="Death disconnect" IsChecked="{Binding DeathDisconnectEnabled}" FontSize="12" VerticalAlignment="Center" />
             <TextBlock Text="Deaths" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
@@ -108,7 +152,7 @@
         </StackPanel>
       </Border>
 
-      <!-- ═══ NPC Targeting ═══ -->
+      <!-- NPC Targeting -->
       <Border Classes="card" Padding="8">
         <StackPanel Spacing="6">
           <TextBlock Text="NPC TARGETING" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" Margin="4,4,0,2" />
@@ -123,11 +167,8 @@
                 <Border Background="#0E1828" BorderBrush="#1A2940" BorderThickness="1" CornerRadius="6"
                         Padding="10,8" Margin="3" Width="330">
                   <StackPanel Spacing="5">
-                    <!-- Header -->
                     <TextBlock Text="{Binding NpcName}" FontSize="12" FontWeight="Bold" />
-                    <!-- Variant rows -->
                     <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="60,Auto,*,*,Auto" ColumnSpacing="6" RowSpacing="4">
-                      <!-- Default -->
                       <TextBlock Grid.Row="0" Text="Normal" FontSize="11" Foreground="#9CA3AF" VerticalAlignment="Center" />
                       <CheckBox Grid.Row="0" Grid.Column="1" IsChecked="{Binding DefaultVariant.Enabled}" />
                       <ComboBox Grid.Row="0" Grid.Column="2" Classes="input" FontSize="11"
@@ -142,7 +183,6 @@
                         <Path Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource TextSecondaryBrush}"
                               Data="M8,1.5C8.47,1.5 8.85,1.88 8.85,2.35V2.9C9.25,3.01 9.63,3.17 9.98,3.38L10.37,2.99C10.7,2.66 11.23,2.66 11.56,2.99L13.01,4.44C13.34,4.77 13.34,5.3 13.01,5.63L12.62,6.02C12.83,6.37 12.99,6.75 13.1,7.15H13.65C14.12,7.15 14.5,7.53 14.5,8C14.5,8.47 14.12,8.85 13.65,8.85H13.1C12.99,9.25 12.83,9.63 12.62,9.98L13.01,10.37C13.34,10.7 13.34,11.23 13.01,11.56L11.56,13.01C11.23,13.34 10.7,13.34 10.37,13.01L9.98,12.62C9.63,12.83 9.25,12.99 8.85,13.1V13.65C8.85,14.12 8.47,14.5 8,14.5C7.53,14.5 7.15,14.12 7.15,13.65V13.1C6.75,12.99 6.37,12.83 6.02,12.62L5.63,13.01C5.3,13.34 4.77,13.34 4.44,13.01L2.99,11.56C2.66,11.23 2.66,10.7 2.99,10.37L3.38,9.98C3.17,9.63 3.01,9.25 2.9,8.85H2.35C1.88,8.85 1.5,8.47 1.5,8C1.5,7.53 1.88,7.15 2.35,7.15H2.9C3.01,6.75 3.17,6.37 3.38,6.02L2.99,5.63C2.66,5.3 2.66,4.77 2.99,4.44L4.44,2.99C4.77,2.66 5.3,2.66 5.63,2.99L6.02,3.38C6.37,3.17 6.75,3.01 7.15,2.9V2.35C7.15,1.88 7.53,1.5 8,1.5ZM8,5.45C6.59,5.45 5.45,6.59 5.45,8C5.45,9.41 6.59,10.55 8,10.55C9.41,10.55 10.55,9.41 10.55,8C10.55,6.59 9.41,5.45 8,5.45Z" />
                       </Button>
-                      <!-- Hyper -->
                       <TextBlock Grid.Row="1" Text="Hyper" FontSize="11" Foreground="#F59E0B" VerticalAlignment="Center" />
                       <CheckBox Grid.Row="1" Grid.Column="1" IsChecked="{Binding HyperVariant.Enabled}" />
                       <ComboBox Grid.Row="1" Grid.Column="2" Classes="input" FontSize="11"
@@ -157,7 +197,6 @@
                         <Path Width="12" Height="12" Stretch="Uniform" Fill="{StaticResource TextSecondaryBrush}"
                               Data="M8,1.5C8.47,1.5 8.85,1.88 8.85,2.35V2.9C9.25,3.01 9.63,3.17 9.98,3.38L10.37,2.99C10.7,2.66 11.23,2.66 11.56,2.99L13.01,4.44C13.34,4.77 13.34,5.3 13.01,5.63L12.62,6.02C12.83,6.37 12.99,6.75 13.1,7.15H13.65C14.12,7.15 14.5,7.53 14.5,8C14.5,8.47 14.12,8.85 13.65,8.85H13.1C12.99,9.25 12.83,9.63 12.62,9.98L13.01,10.37C13.34,10.7 13.34,11.23 13.01,11.56L11.56,13.01C11.23,13.34 10.7,13.34 10.37,13.01L9.98,12.62C9.63,12.83 9.25,12.99 8.85,13.1V13.65C8.85,14.12 8.47,14.5 8,14.5C7.53,14.5 7.15,14.12 7.15,13.65V13.1C6.75,12.99 6.37,12.83 6.02,12.62L5.63,13.01C5.3,13.34 4.77,13.34 4.44,13.01L2.99,11.56C2.66,11.23 2.66,10.7 2.99,10.37L3.38,9.98C3.17,9.63 3.01,9.25 2.9,8.85H2.35C1.88,8.85 1.5,8.47 1.5,8C1.5,7.53 1.88,7.15 2.35,7.15H2.9C3.01,6.75 3.17,6.37 3.38,6.02L2.99,5.63C2.66,5.3 2.66,4.77 2.99,4.44L4.44,2.99C4.77,2.66 5.3,2.66 5.63,2.99L6.02,3.38C6.37,3.17 6.75,3.01 7.15,2.9V2.35C7.15,1.88 7.53,1.5 8,1.5ZM8,5.45C6.59,5.45 5.45,6.59 5.45,8C5.45,9.41 6.59,10.55 8,10.55C9.41,10.55 10.55,9.41 10.55,8C10.55,6.59 9.41,5.45 8,5.45Z" />
                       </Button>
-                      <!-- Ultra -->
                       <TextBlock Grid.Row="2" Text="Ultra" FontSize="11" Foreground="#EF4444" VerticalAlignment="Center" />
                       <CheckBox Grid.Row="2" Grid.Column="1" IsChecked="{Binding UltraVariant.Enabled}" />
                       <ComboBox Grid.Row="2" Grid.Column="2" Classes="input" FontSize="11"
@@ -181,7 +220,7 @@
         </StackPanel>
       </Border>
 
-      <!-- ═══ Advanced ═══ -->
+      <!-- Advanced -->
       <Border Classes="card">
         <StackPanel Spacing="8">
           <TextBlock Text="ADVANCED" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />

@@ -110,6 +110,23 @@ public:
     [[nodiscard]] Module* currentModule() const noexcept { 
         return currentModule_; 
     }
+
+    /**
+     * @brief Stop the currently active module without removing registered modules
+     *
+     * Used when a controller-level workflow temporarily takes ownership away
+     * from the scheduler. The next scheduler tick will start the best module
+     * again through the normal onStart path.
+     */
+    void suspendCurrentModule() {
+        if (!currentModule_) {
+            return;
+        }
+
+        std::cout << "[Scheduler] Suspending module: " << currentModule_->name() << "\n";
+        currentModule_->onStop();
+        currentModule_ = nullptr;
+    }
     
     /**
      * @brief Get name of currently active module

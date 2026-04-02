@@ -75,7 +75,7 @@ public:
     }
 
     [[nodiscard]] int getPriority(const GameSnapshot& snap) override {
-        if (!enabled_ || !config_.enabled) {
+        if (!enabled_ || (!config_.enabled && !externalControl_)) {
             return 0;
         }
 
@@ -112,6 +112,7 @@ public:
 
         if (state_ == TravelState::Arrived || targetMap_.empty()) {
             transitionTo(TravelState::Idle, 0);
+            externalControl_ = false;
             targetMap_.clear();
             currentPath_.clear();
             currentPathIndex_ = 0;
@@ -130,6 +131,7 @@ public:
             transitionTo(TravelState::Arrived, snap.timestampMs);
             std::cout << "[Travel] Arrived at destination: " << targetMap_ << "\n";
             publishTelemetry(snap, "Arrived");
+            externalControl_ = false;
             targetMap_.clear();
             currentPath_.clear();
             currentPathIndex_ = 0;
@@ -166,6 +168,7 @@ public:
 
     void setDestination(const std::string& mapName) {
         if (mapGraph_.hasMap(mapName) || mapName.empty()) {
+            externalControl_ = !mapName.empty();
             targetMap_ = mapName;
             currentPath_.clear();
             currentPathIndex_ = 0;
@@ -190,6 +193,7 @@ public:
     }
 
     void cancelTravel() {
+        externalControl_ = false;
         targetMap_.clear();
         currentPath_.clear();
         currentPathIndex_ = 0;
@@ -220,6 +224,7 @@ private:
     TravelState state_{TravelState::Idle};
 
     std::string targetMap_;
+    bool externalControl_{false};
     std::vector<PathStep> currentPath_;
     int currentPathIndex_{0};
 

@@ -195,6 +195,84 @@ public sealed class NpcRuleViewModel : ViewModelBase
     }
 }
 
+public sealed class ResourceModuleSettingViewModel : ViewModelBase
+{
+    private bool _enabled;
+    private bool _parentEnabled;
+    private EnrichmentMaterialOption? _selectedMaterial;
+    private IntOption? _selectedPriority;
+
+    public ResourceModuleSettingViewModel(
+        string key,
+        string label,
+        IReadOnlyList<EnrichmentMaterialOption> materialOptions,
+        int fallbackPriority)
+    {
+        Key = key;
+        Label = label;
+        MaterialOptions = materialOptions;
+        FallbackPriority = fallbackPriority;
+        _selectedMaterial = materialOptions.FirstOrDefault();
+        _selectedPriority = ProfileCatalog.FindResourcePriorityOption(fallbackPriority);
+    }
+
+    public string Key { get; }
+    public string Label { get; }
+    public int FallbackPriority { get; }
+    public IReadOnlyList<EnrichmentMaterialOption> MaterialOptions { get; }
+    public IReadOnlyList<IntOption> PriorityOptions => ProfileCatalog.ResourcePriorityOptions;
+
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (SetProperty(ref _enabled, value))
+                OnPropertyChanged(nameof(IsEditable));
+        }
+    }
+
+    public EnrichmentMaterialOption? SelectedMaterial
+    {
+        get => _selectedMaterial;
+        set => SetProperty(ref _selectedMaterial, value);
+    }
+
+    public IntOption? SelectedPriority
+    {
+        get => _selectedPriority;
+        set => SetProperty(ref _selectedPriority, value);
+    }
+
+    public bool IsEditable => _parentEnabled && Enabled;
+
+    public void SetParentEnabled(bool enabled)
+    {
+        if (_parentEnabled == enabled)
+        {
+            return;
+        }
+
+        _parentEnabled = enabled;
+        OnPropertyChanged(nameof(IsEditable));
+    }
+
+    public void LoadFrom(ResourceModuleSettings settings)
+    {
+        Enabled = settings.Enabled;
+        SelectedPriority = ProfileCatalog.FindResourcePriorityOption(settings.Priority);
+        SelectedMaterial = MaterialOptions.FirstOrDefault(option => option.Value == settings.Material)
+            ?? MaterialOptions.FirstOrDefault();
+    }
+
+    public ResourceModuleSettings ToModel() => new()
+    {
+        Enabled = Enabled,
+        Material = SelectedMaterial?.Value ?? MaterialOptions.First().Value,
+        Priority = SelectedPriority?.Value ?? FallbackPriority,
+    };
+}
+
 public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
 {
     private readonly IpcClient _ipc;
@@ -227,6 +305,9 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
     private bool _deathDisconnectEnabled;
     private string _deathThreshold = "5";
     private string _deathCooldownMinutes = "15";
+    private bool _resourceAutomationEnabled;
+    private bool _sellCargoWhenBlocked;
+    private string _refineIntervalSeconds = "120";
 
     // Autobuy
     private bool _autobuyLaserRlx1;
@@ -237,10 +318,35 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
     private bool _autobuyRocketKep410;
     private bool _autobuyRocketNc30;
     private bool _autobuyRocketTnc130;
+    private readonly ResourceModuleSettingViewModel _speedResourceModule;
+    private readonly ResourceModuleSettingViewModel _shieldResourceModule;
+    private readonly ResourceModuleSettingViewModel _laserResourceModule;
+    private readonly ResourceModuleSettingViewModel _rocketResourceModule;
 
     public ProfileEditorViewModel(IpcClient ipc)
     {
         _ipc = ipc ?? throw new ArgumentNullException(nameof(ipc));
+
+        _speedResourceModule = new ResourceModuleSettingViewModel(
+            "speed",
+            "Speed",
+            ProfileCatalog.ShieldSpeedEnrichmentOptions,
+            fallbackPriority: 1);
+        _shieldResourceModule = new ResourceModuleSettingViewModel(
+            "shields",
+            "Shields",
+            ProfileCatalog.ShieldSpeedEnrichmentOptions,
+            fallbackPriority: 2);
+        _laserResourceModule = new ResourceModuleSettingViewModel(
+            "lasers",
+            "Lasers",
+            ProfileCatalog.LaserRocketEnrichmentOptions,
+            fallbackPriority: 3);
+        _rocketResourceModule = new ResourceModuleSettingViewModel(
+            "rockets",
+            "Rockets",
+            ProfileCatalog.LaserRocketEnrichmentOptions,
+            fallbackPriority: 4);
 
         foreach (var map in ProfileCatalog.KnownMaps)
         {
@@ -249,8 +355,14 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
             AvoidMaps.Add(item);
         }
 
+        ResourceModules.Add(_speedResourceModule);
+        ResourceModules.Add(_shieldResourceModule);
+        ResourceModules.Add(_laserResourceModule);
+        ResourceModules.Add(_rocketResourceModule);
+
         _selectedWorkingMap = ProfileCatalog.KnownMaps[0];
         RebuildNpcRules([]);
+        SyncResourceModuleAvailability();
 
         _ipc.OnConnected += HandleConnected;
         _ipc.OnDisconnected += HandleDisconnected;
@@ -269,6 +381,7 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
     public ObservableCollection<string> Profiles { get; } = new();
     public ObservableCollection<MapSelectionItem> AvoidMaps { get; } = new();
     public ObservableCollection<NpcRuleViewModel> NpcRules { get; } = new();
+    public ObservableCollection<ResourceModuleSettingViewModel> ResourceModules { get; } = new();
 
     // Static option lists
     public IReadOnlyList<string> KnownMaps => ProfileCatalog.KnownMaps;
@@ -449,6 +562,36 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
         get => _deathCooldownMinutes;
         set => ClampedIntSet(ref _deathCooldownMinutes, value, 0, 180, nameof(DeathCooldownMinutes));
     }
+
+    public bool ResourceAutomationEnabled
+    {
+        get => _resourceAutomationEnabled;
+        set
+        {
+            if (SetProperty(ref _resourceAutomationEnabled, value))
+            {
+                OnPropertyChanged(nameof(IsSellCargoEnabled));
+                OnPropertyChanged(nameof(IsRefineIntervalEnabled));
+                SyncResourceModuleAvailability();
+            }
+        }
+    }
+
+    public bool SellCargoWhenBlocked
+    {
+        get => _sellCargoWhenBlocked;
+        set => SetProperty(ref _sellCargoWhenBlocked, value);
+    }
+
+    public bool IsSellCargoEnabled => ResourceAutomationEnabled;
+
+    public string RefineIntervalSeconds
+    {
+        get => _refineIntervalSeconds;
+        set => ClampedIntSet(ref _refineIntervalSeconds, value, 30, 600, nameof(RefineIntervalSeconds));
+    }
+
+    public bool IsRefineIntervalEnabled => ResourceAutomationEnabled;
 
     // Autobuy
     public bool AutobuyLaserRlx1 { get => _autobuyLaserRlx1; set => SetProperty(ref _autobuyLaserRlx1, value); }
@@ -649,6 +792,14 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
         DeathDisconnectEnabled = normalized.DeathDisconnect.Enabled;
         DeathThreshold = normalized.DeathDisconnect.DeathThreshold.ToString();
         DeathCooldownMinutes = normalized.DeathDisconnect.CooldownMinutes.ToString();
+        ResourceAutomationEnabled = normalized.Resources.Enabled;
+        SellCargoWhenBlocked = normalized.Resources.SellWhenBlocked;
+        RefineIntervalSeconds = normalized.Resources.RefineIntervalSeconds.ToString();
+        _speedResourceModule.LoadFrom(normalized.Resources.Speed);
+        _shieldResourceModule.LoadFrom(normalized.Resources.Shields);
+        _laserResourceModule.LoadFrom(normalized.Resources.Lasers);
+        _rocketResourceModule.LoadFrom(normalized.Resources.Rockets);
+        SyncResourceModuleAvailability();
         var ab = normalized.Autobuy ?? new AutobuyConfig();
         AutobuyLaserRlx1 = ab.LaserRlx1;
         AutobuyLaserGlx2 = ab.LaserGlx2;
@@ -675,9 +826,11 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
     private static BotProfile NormalizeProfile(BotProfile profile)
     {
         var normalized = profile.DeepClone();
+        normalized.SchemaVersion = Math.Max(normalized.SchemaVersion, 2);
         normalized.NpcRules ??= [];
         normalized.BoxTypes ??= [];
         normalized.AvoidMaps ??= [];
+        normalized.Resources = NormalizeResourceAutomation(normalized.Resources);
 
         var rulesByName = normalized.NpcRules
             .Where(r => !string.IsNullOrWhiteSpace(r.NpcName))
@@ -736,7 +889,7 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
     {
         return new BotProfile
         {
-            SchemaVersion = 1,
+            SchemaVersion = 2,
             Id = (ProfileId ?? string.Empty).Trim(),
             DisplayName = (DisplayName ?? string.Empty).Trim(),
             WorkingMap = SelectedWorkingMap ?? "R-1",
@@ -770,6 +923,7 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
                 DeathThreshold = ParseInt(DeathThreshold, 5),
                 CooldownMinutes = ParseInt(DeathCooldownMinutes, 15),
             },
+            Resources = BuildResourceAutomation(),
             Autobuy = new AutobuyConfig
             {
                 LaserRlx1 = AutobuyLaserRlx1,
@@ -793,6 +947,18 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
         return result;
     }
 
+    private ResourceAutomationSettings BuildResourceAutomation() =>
+        NormalizeResourceAutomation(new ResourceAutomationSettings
+        {
+            Enabled = ResourceAutomationEnabled,
+            SellWhenBlocked = SellCargoWhenBlocked,
+            RefineIntervalSeconds = ParseInt(RefineIntervalSeconds, 120),
+            Speed = _speedResourceModule.ToModel(),
+            Shields = _shieldResourceModule.ToModel(),
+            Lasers = _laserResourceModule.ToModel(),
+            Rockets = _rocketResourceModule.ToModel(),
+        });
+
     private static List<string> ValidateProfile(BotProfile p)
     {
         var e = new List<string>();
@@ -806,6 +972,10 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
         if (p.AdminDisconnect.CooldownMinutes < 0) e.Add("Admin cooldown ≥ 0.");
         if (p.DeathDisconnect.Enabled && p.DeathDisconnect.DeathThreshold <= 0) e.Add("Death threshold > 0.");
         if (p.DeathDisconnect.CooldownMinutes < 0) e.Add("Death cooldown ≥ 0.");
+        ValidateResourceModule(p.Resources.Speed, "Speed", ProfileCatalog.ShieldSpeedEnrichmentOptions, e);
+        ValidateResourceModule(p.Resources.Shields, "Shields", ProfileCatalog.ShieldSpeedEnrichmentOptions, e);
+        ValidateResourceModule(p.Resources.Lasers, "Lasers", ProfileCatalog.LaserRocketEnrichmentOptions, e);
+        ValidateResourceModule(p.Resources.Rockets, "Rockets", ProfileCatalog.LaserRocketEnrichmentOptions, e);
         foreach (var npc in p.NpcRules)
         {
             var variants = new[] { npc.DefaultVariant, npc.HyperVariant, npc.UltraVariant };
@@ -818,6 +988,72 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
             }
         }
         return e;
+    }
+
+    private static void ValidateResourceModule(
+        ResourceModuleSettings settings,
+        string label,
+        IReadOnlyList<EnrichmentMaterialOption> allowedOptions,
+        List<string> errors)
+    {
+        if (settings.Priority is < 1 or > 4)
+            errors.Add($"{label} priority must be 1-4.");
+
+        if (!allowedOptions.Any(option => option.Value == settings.Material))
+            errors.Add($"{label} material is invalid.");
+    }
+
+    private static ResourceAutomationSettings NormalizeResourceAutomation(ResourceAutomationSettings? resources)
+    {
+        resources ??= new ResourceAutomationSettings();
+        resources.RefineIntervalSeconds = Math.Clamp(resources.RefineIntervalSeconds, 30, 600);
+        resources.Speed ??= new ResourceModuleSettings { Material = EnrichmentMaterial.Uranit, Priority = 1 };
+        resources.Shields ??= new ResourceModuleSettings { Material = EnrichmentMaterial.Uranit, Priority = 2 };
+        resources.Lasers ??= new ResourceModuleSettings { Material = EnrichmentMaterial.Darkonit, Priority = 3 };
+        resources.Rockets ??= new ResourceModuleSettings { Material = EnrichmentMaterial.Darkonit, Priority = 4 };
+
+        NormalizeResourceModule(resources.Speed, ProfileCatalog.ShieldSpeedEnrichmentOptions, EnrichmentMaterial.Uranit);
+        NormalizeResourceModule(resources.Shields, ProfileCatalog.ShieldSpeedEnrichmentOptions, EnrichmentMaterial.Uranit);
+        NormalizeResourceModule(resources.Lasers, ProfileCatalog.LaserRocketEnrichmentOptions, EnrichmentMaterial.Darkonit);
+        NormalizeResourceModule(resources.Rockets, ProfileCatalog.LaserRocketEnrichmentOptions, EnrichmentMaterial.Darkonit);
+
+        var ordered = new[]
+        {
+            new { Settings = resources.Speed, Fallback = 1 },
+            new { Settings = resources.Shields, Fallback = 2 },
+            new { Settings = resources.Lasers, Fallback = 3 },
+            new { Settings = resources.Rockets, Fallback = 4 },
+        }
+        .OrderBy(entry => entry.Settings.Priority)
+        .ThenBy(entry => entry.Fallback)
+        .ToArray();
+
+        for (var index = 0; index < ordered.Length; index++)
+        {
+            ordered[index].Settings.Priority = index + 1;
+        }
+
+        return resources;
+    }
+
+    private static void NormalizeResourceModule(
+        ResourceModuleSettings settings,
+        IReadOnlyList<EnrichmentMaterialOption> allowedOptions,
+        EnrichmentMaterial fallbackMaterial)
+    {
+        settings.Priority = Math.Clamp(settings.Priority, 1, 4);
+        if (!allowedOptions.Any(option => option.Value == settings.Material))
+        {
+            settings.Material = fallbackMaterial;
+        }
+    }
+
+    private void SyncResourceModuleAvailability()
+    {
+        foreach (var module in ResourceModules)
+        {
+            module.SetParentEnabled(ResourceAutomationEnabled);
+        }
     }
 
     private static int ParseInt(string? text, int fallback) =>

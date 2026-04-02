@@ -121,6 +121,13 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     total
 )
 
+struct EnrichmentModuleSnapshot {
+    std::string module;
+    std::string material;
+    int amount{0};
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(EnrichmentModuleSnapshot, module, material, amount)
+
 struct BackendStatusSnapshot {
     std::string connectionState{"Disconnected"};
     std::string engineState{"NotConnected"};
@@ -174,6 +181,7 @@ struct BackendStatusSnapshot {
     std::string travelDestination{"-"};
     std::string roamingDecision{"Idle"};
     ResourceInventorySnapshot currentResources;
+    std::vector<EnrichmentModuleSnapshot> enrichments;
     SessionStatsSnapshot stats;
     std::vector<MapEntity> mapEntities;
 };
@@ -231,6 +239,7 @@ NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(
     travelDestination,
     roamingDecision,
     currentResources,
+    enrichments,
     stats,
     mapEntities
 )

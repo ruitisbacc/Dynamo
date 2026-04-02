@@ -29,6 +29,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly IpcClient _ipc;
     private readonly Dictionary<string, StatsEntryViewModel> _statsRows = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ResourceAmountViewModel> _resourceRows = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, EnrichmentRowViewModel> _enrichmentRows = new(StringComparer.Ordinal);
     private readonly InventoryStatsSnapshot _carriedSessionStats = new();
     private bool _disposed;
     private bool _manualShutdownRequested;
@@ -303,6 +304,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     public ObservableCollection<string> Profiles { get; } = new();
     public ObservableCollection<StatsSectionViewModel> StatsSections { get; } = new();
     public ObservableCollection<ResourceAmountViewModel> CurrentResourceRows { get; } = new();
+    public ObservableCollection<EnrichmentRowViewModel> EnrichmentRows { get; } = new();
 
     // ── Computed ──
 
@@ -584,6 +586,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             BotPaused = snapshot.BotPaused;
             ApplyStatsSnapshot(MergeStatsSnapshot(snapshot.Stats));
             ApplyCurrentResources(snapshot.CurrentResources);
+            ApplyEnrichments(snapshot.Enrichments);
 
             OnPropertyChanged(nameof(BackendBadge));
             OnPropertyChanged(nameof(HeroMovementLabel));
@@ -661,6 +664,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         AddResourceRow("azurit", "Azurit");
         AddResourceRow("dungid", "Dungid");
         AddResourceRow("xureon", "Xureon");
+
+        EnrichmentRows.Clear();
+        _enrichmentRows.Clear();
+        AddEnrichmentRow("Lasers", "shots");
+        AddEnrichmentRow("Rockets", "shots");
+        AddEnrichmentRow("Shields", "min");
+        AddEnrichmentRow("Speed", "min");
     }
 
     private void AddResourceRow(string key, string label)
@@ -668,6 +678,13 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         var row = new ResourceAmountViewModel(label);
         CurrentResourceRows.Add(row);
         _resourceRows[key] = row;
+    }
+
+    private void AddEnrichmentRow(string module, string unit)
+    {
+        var row = new EnrichmentRowViewModel(module, unit);
+        EnrichmentRows.Add(row);
+        _enrichmentRows[module] = row;
     }
 
     private StatsSectionViewModel CreateStatsSection(
@@ -983,6 +1000,24 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         if (_resourceRows.TryGetValue(key, out var row))
             row.Update(amount);
+    }
+
+    private void ApplyEnrichments(EnrichmentModuleSnapshot[]? enrichments)
+    {
+        if (enrichments == null || enrichments.Length == 0)
+        {
+            foreach (var row in _enrichmentRows.Values)
+                row.Update("", 0);
+            return;
+        }
+
+        foreach (var enrichment in enrichments)
+        {
+            if (!_enrichmentRows.TryGetValue(enrichment.Module, out var row))
+                continue;
+
+            row.Update(enrichment.Material, enrichment.Amount);
+        }
     }
 
     private static string FormatDuration(long totalSeconds)

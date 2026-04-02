@@ -17,6 +17,8 @@
 #include "bot/modules/collect_module.hpp"
 #include "bot/modules/roaming_module.hpp"
 #include "bot/modules/travel_module.hpp"
+#include "bot/resources/resource_planner.hpp"
+#include "bot/support/map_graph.hpp"
 #include "config/config_service.hpp"
 
 #include "game/game_engine.hpp"
@@ -28,9 +30,13 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <array>
 #include <functional>
+#include <limits>
 #include <optional>
 #include <string>
+#include <unordered_set>
+#include <vector>
 
 namespace dynamo {
 
@@ -66,6 +72,20 @@ struct BotStats {
         fleeEvents = 0;
         btcEarned = 0;
     }
+};
+
+enum class ResourceAutomationState {
+    Idle,
+    WaitingForResourcesInfo,
+    TravelingToTradeMap,
+    MovingToTradeStation,
+    WaitingForTradeInfo,
+    ReturningToWorkMap
+};
+
+struct ResourceSellStep {
+    ResourceType resource{ResourceType::Cerium};
+    int32_t amount{0};
 };
 
 /**
@@ -131,6 +151,7 @@ public:
         state_ = BotState::Starting;
         shouldRun_ = true;
         safetySessionState_->reset();
+        resetResourceAutomationState();
         stats_.reset();
         stats_.startTime = currentTimeMs();
         
@@ -170,6 +191,7 @@ public:
         
         state_ = BotState::Stopped;
         safetySessionState_->reset();
+        resetResourceAutomationState();
         std::cout << "[BotController] Stopped\n";
     }
     
@@ -383,6 +405,17 @@ private:
     bool reconnectPending_{false};
     int64_t reconnectAtMs_{0};
     std::string reconnectReason_;
+    ResourceAutomationState resourceAutomationState_{ResourceAutomationState::Idle};
+    ResourceAutomationPlan lastResourcePlan_;
+    MapGraph resourceMapGraph_;
+    int64_t lastResourceInfoRequestAtMs_{0};
+    int64_t lastTradeInfoRequestAtMs_{0};
+    int64_t nextResourceActionAtMs_{0};
+    int64_t resourceFlowStartedAtMs_{0};
+    int64_t resourceIdleBackoffUntilMs_{0};
+    int64_t lastRefineCompletedAtMs_{0};
+    bool resourceFlowTriggeredByCargo_{false};
+    std::string resourceTradeTargetMap_;
 
     // Autobuy
     int64_t lastAutobuyCheckMs_{0};
@@ -392,6 +425,15 @@ private:
     static constexpr int32_t LASER_MIN_AMOUNT = 10000;
     static constexpr int32_t ROCKET_BUY_AMOUNT = 1000;
     static constexpr int32_t ROCKET_MIN_AMOUNT = 1000;
+    static constexpr int64_t RESOURCE_INFO_RETRY_MS = 2000;
+    static constexpr int64_t RESOURCE_INFO_TIMEOUT_MS = 5000;
+    static constexpr int64_t RESOURCE_ACTION_COOLDOWN_MS = 600;
+    static constexpr int64_t TRADE_STATION_ARRIVAL_RANGE = 260;
+    static constexpr int64_t RESOURCE_FLOW_GLOBAL_TIMEOUT_MS = 5 * 60 * 1000;
+    static constexpr int64_t RESOURCE_IDLE_BACKOFF_MS = 30000;
+    static constexpr std::array<std::string_view, 6> TRADE_MAP_NAMES = {
+        "R-1", "E-1", "U-1", "R-7", "E-7", "U-7"
+    };
 
     void tickAutobuy(const GameSnapshot& snap, const AutobuyConfig& config) {
         if (!config.anyEnabled()) return;
@@ -500,6 +542,7 @@ private:
         nextReviveAttemptAtMs_ = 0;
         immediateDeathRevivePending_.store(false);
         reviveEventPending_.store(false);
+        resetResourceAutomationState();
         
         if (stateCallback_) {
             stateCallback_(state_);
@@ -555,13 +598,16 @@ private:
             if (reconnectPending_ || deadNow) {
                 continue;
             }
-            enforceWorkingMapGates(snap, runtime);
-            applyModeToModules(runtime);
-            
-            // Run scheduler tick
-            {
-                std::lock_guard<std::mutex> lock(schedulerMutex_);
-                scheduler_.tick(snap);
+            const bool resourceConsumedTick = handleResourceAutomation(snap, runtime);
+            if (!resourceConsumedTick) {
+                enforceWorkingMapGates(snap, runtime);
+                applyModeToModules(runtime);
+
+                // Run scheduler tick
+                {
+                    std::lock_guard<std::mutex> lock(schedulerMutex_);
+                    scheduler_.tick(snap);
+                }
             }
             handleDisconnectPolicies(snap, runtime);
             tickAutobuy(snap, runtime.autobuy);
@@ -625,6 +671,561 @@ private:
         auto* safety = dynamic_cast<SafetyModule*>(safetyBase);
         if (safety) {
             safety->confirmRevive(nowMs);
+        }
+    }
+
+    [[nodiscard]] static bool isTradeMapName(const std::string& mapName) {
+        for (const auto candidate : TRADE_MAP_NAMES) {
+            if (mapName == candidate) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void logResourceFlow(const std::string& message) const {
+        std::cout << "[ResourcesFlow] " << message << "\n";
+    }
+
+    void resetResourceAutomationState() {
+        resourceAutomationState_ = ResourceAutomationState::Idle;
+        lastResourcePlan_ = ResourceAutomationPlan{};
+        lastResourceInfoRequestAtMs_ = 0;
+        lastTradeInfoRequestAtMs_ = 0;
+        nextResourceActionAtMs_ = 0;
+        resourceFlowStartedAtMs_ = 0;
+        resourceIdleBackoffUntilMs_ = 0;
+        resourceFlowTriggeredByCargo_ = false;
+        resourceTradeTargetMap_.clear();
+    }
+
+    void suspendSchedulerForControllerWork(bool resetMovement = true) {
+        {
+            std::lock_guard<std::mutex> lock(schedulerMutex_);
+            scheduler_.suspendCurrentModule();
+        }
+        if (resetMovement && movement_) {
+            movement_->reset();
+        }
+    }
+
+    void cancelTravelModule() {
+        std::lock_guard<std::mutex> lock(schedulerMutex_);
+        Module* travelBase = scheduler_.findModule("Travel");
+        auto* travel = dynamic_cast<TravelModule*>(travelBase);
+        if (travel && (!travel->getDestination().empty() || travel->isTraveling())) {
+            travel->cancelTravel();
+        }
+    }
+
+    void enterResourcesInfoWait(const GameSnapshot& snap,
+                                std::string_view reason,
+                                int64_t delayMs = 0) {
+        if (resourceFlowStartedAtMs_ <= 0) {
+            resourceFlowStartedAtMs_ = snap.timestampMs;
+        }
+        resourceAutomationState_ = ResourceAutomationState::WaitingForResourcesInfo;
+        lastResourceInfoRequestAtMs_ = 0;
+        nextResourceActionAtMs_ = snap.timestampMs + std::max<int64_t>(0, delayMs);
+        if (!reason.empty()) {
+            logResourceFlow(std::string(reason));
+        }
+    }
+
+    void enterTradeInfoWait(const GameSnapshot& snap,
+                            std::string_view reason,
+                            int64_t delayMs = 0) {
+        resourceAutomationState_ = ResourceAutomationState::WaitingForTradeInfo;
+        lastTradeInfoRequestAtMs_ = 0;
+        nextResourceActionAtMs_ = snap.timestampMs + std::max<int64_t>(0, delayMs);
+        if (!reason.empty()) {
+            logResourceFlow(std::string(reason));
+        }
+    }
+
+    void finishResourceAutomation([[maybe_unused]] const GameSnapshot& snap,
+                                  [[maybe_unused]] const BotConfig& runtime,
+                                  std::string_view reason) {
+        if (resourceAutomationState_ == ResourceAutomationState::TravelingToTradeMap ||
+            resourceAutomationState_ == ResourceAutomationState::ReturningToWorkMap) {
+            cancelTravelModule();
+        }
+
+        if (!reason.empty()) {
+            logResourceFlow(std::string(reason));
+        }
+
+        resetResourceAutomationState();
+    }
+
+    bool beginReturnToWorkingMapIfNeeded(const GameSnapshot& snap,
+                                         const BotConfig& runtime,
+                                         std::string_view reason) {
+        if (!runtime.map.workingMap.empty() &&
+            snap.mapName != runtime.map.workingMap &&
+            isTradeMapName(snap.mapName)) {
+            cancelTravelModule();
+            resourceAutomationState_ = ResourceAutomationState::ReturningToWorkMap;
+            resourceTradeTargetMap_.clear();
+            if (!reason.empty()) {
+                logResourceFlow(std::string(reason));
+            }
+            return true;
+        }
+
+        finishResourceAutomation(snap, runtime, reason);
+        return false;
+    }
+
+    [[nodiscard]] bool shouldYieldResourceAutomationToScheduler(const GameSnapshot& snap,
+                                                                const BotConfig& runtime) const {
+        if (!runtime.safety.enabled) {
+            return false;
+        }
+
+        if (snap.hero.healthPercent() < static_cast<float>(runtime.safety.repairHpPercent)) {
+            return true;
+        }
+
+        for (const auto& enemy : snap.entities.enemies) {
+            if (enemy.isAttacking && enemy.selectedTarget == snap.hero.id) {
+                return true;
+            }
+        }
+
+        if (runtime.safety.fleeMode == SafetyFleeMode::OnEnemySeen &&
+            !snap.entities.enemies.empty()) {
+            return true;
+        }
+
+        const auto safety = getSafetyTelemetry();
+        if (!safety.has_value()) {
+            return false;
+        }
+
+        if (safety->state != SafetyState::Monitoring ||
+            safety->beingAttacked ||
+            safety->attackers > 0 ||
+            safety->adminSeenRecently) {
+            return true;
+        }
+
+        return runtime.safety.fleeMode == SafetyFleeMode::OnEnemySeen &&
+               safety->visibleEnemies > 0;
+    }
+
+    [[nodiscard]] static char factionPrefix(int32_t fraction) {
+        switch (fraction) {
+            case 1: return 'R';
+            case 2: return 'E';
+            case 3: return 'U';
+            default: return '\0';
+        }
+    }
+
+    [[nodiscard]] std::optional<std::string> selectNearestTradeMap(const GameSnapshot& snap,
+                                                                   const BotConfig& runtime) const {
+        const std::unordered_set<std::string> blocked(runtime.map.avoidMaps.begin(),
+                                                      runtime.map.avoidMaps.end());
+        const char ownPrefix = factionPrefix(snap.hero.fraction);
+
+        std::optional<std::string> bestMap;
+        int bestDistance = std::numeric_limits<int>::max();
+
+        for (const auto candidateView : TRADE_MAP_NAMES) {
+            if (ownPrefix != '\0' && !candidateView.empty() && candidateView[0] != ownPrefix) {
+                continue;
+            }
+
+            const std::string candidate(candidateView);
+            int distance = 0;
+
+            if (snap.mapName != candidate) {
+                const auto path = resourceMapGraph_.findPath(snap.mapName, candidate, blocked);
+                if (path.empty()) {
+                    continue;
+                }
+                distance = static_cast<int>(path.size());
+            }
+
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestMap = candidate;
+            }
+        }
+
+        return bestMap;
+    }
+
+    [[nodiscard]] const StationInfo* nearestTradeStation(const GameSnapshot& snap) const {
+        const StationInfo* best = nullptr;
+        float bestDistance = std::numeric_limits<float>::max();
+
+        for (const auto& station : snap.entities.stations) {
+            if (!station.isTradeStation()) {
+                continue;
+            }
+
+            const float distance = station.distanceTo(snap.hero.x, snap.hero.y);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                best = &station;
+            }
+        }
+
+        return best;
+    }
+
+    [[nodiscard]] std::vector<ResourceSellStep> buildSellSteps(
+        const ResourceStateSnapshot& resources,
+        const ResourceAutomationSettings& settings) const {
+        static constexpr std::array<ResourceType, kResourceTypeCount> sellOrder = {
+            ResourceType::Cerium,
+            ResourceType::Mercury,
+            ResourceType::Erbium,
+            ResourceType::Piritid,
+            ResourceType::Darkonit,
+            ResourceType::Uranit,
+            ResourceType::Azurit,
+            ResourceType::Dungid,
+            ResourceType::Xureon,
+        };
+
+        std::unordered_set<int32_t> selectedMaterials;
+        auto markSelected = [&](const ResourceModuleSettings& module) {
+            if (module.enabled) {
+                selectedMaterials.insert(static_cast<int32_t>(toResourceType(module.material)));
+            }
+        };
+        markSelected(settings.speed);
+        markSelected(settings.shields);
+        markSelected(settings.lasers);
+        markSelected(settings.rockets);
+
+        std::vector<ResourceSellStep> steps;
+        steps.reserve(kResourceTypeCount);
+
+        for (const auto resource : sellOrder) {
+            const auto type = static_cast<int32_t>(resource);
+            if (selectedMaterials.contains(type)) {
+                continue;
+            }
+
+            const auto* stack = resources.findTradeResource(type);
+            if (!stack || stack->amount <= 0) {
+                continue;
+            }
+
+            steps.push_back(ResourceSellStep{resource, stack->amount});
+        }
+        return steps;
+    }
+
+    bool runTravelOnlySchedulerTick(const GameSnapshot& snap, const std::string& destination) {
+        std::lock_guard<std::mutex> lock(schedulerMutex_);
+        auto* travel = dynamic_cast<TravelModule*>(scheduler_.findModule("Travel"));
+        if (!travel) {
+            return false;
+        }
+
+        if (travel->getDestination() != destination) {
+            travel->setDestination(destination);
+        }
+
+        if (Module* combat = scheduler_.findModule("Combat")) combat->setEnabled(false);
+        if (Module* collect = scheduler_.findModule("Collect")) collect->setEnabled(false);
+        if (Module* roaming = scheduler_.findModule("Roaming")) roaming->setEnabled(false);
+        if (Module* travelBase = scheduler_.findModule("Travel")) travelBase->setEnabled(true);
+
+        scheduler_.tick(snap);
+        return true;
+    }
+
+    bool executeRefineStep(const GameSnapshot& snap,
+                           const ResourceRefinePlanStep& step,
+                           std::string_view kind) {
+        const auto* stack = snap.resources.findResource(static_cast<int32_t>(step.target));
+        if (!stack) {
+            logResourceFlow("Refine skipped because target stack is missing in resource snapshot.");
+            enterResourcesInfoWait(snap, "Retry resource refresh after missing refine target.");
+            return true;
+        }
+
+        const int32_t maxChunk = stack->maxRefineAmount > 0 ? stack->maxRefineAmount : step.amount;
+        const int32_t amount = std::min(step.amount, maxChunk);
+        if (amount <= 0) {
+            logResourceFlow(std::string(kind) + " refine for " + resourceTypeName(step.target) +
+                            " is currently unavailable; waiting for fresh panel data.");
+            enterResourcesInfoWait(snap, "Waiting for refine availability.");
+            return true;
+        }
+
+        suspendSchedulerForControllerWork();
+        engine_->clearPendingActions();
+        engine_->refineResource(static_cast<int32_t>(step.target), amount);
+        logResourceFlow(std::string("Sent ") + std::string(kind) + " refine: " +
+                        std::to_string(amount) + " " + resourceTypeName(step.target));
+        enterResourcesInfoWait(snap, "Waiting for resources refresh after refine.", RESOURCE_ACTION_COOLDOWN_MS);
+        return true;
+    }
+
+    bool executeEnrichStep(const GameSnapshot& snap,
+                           const ResourceEnrichPlanStep& step) {
+        if (step.amount <= 0) {
+            enterResourcesInfoWait(snap, "Skipping empty enrich step.");
+            return true;
+        }
+
+        suspendSchedulerForControllerWork();
+        engine_->clearPendingActions();
+        engine_->enrichModule(static_cast<int32_t>(step.module),
+                              static_cast<int32_t>(step.material),
+                              step.amount);
+        logResourceFlow(std::string("Sent enrich: ") +
+                        resourceModuleTypeName(step.module) +
+                        " <- " + resourceTypeName(step.material) +
+                        " amount " + std::to_string(step.amount));
+        enterResourcesInfoWait(snap, "Waiting for resources refresh after enrich.", RESOURCE_ACTION_COOLDOWN_MS);
+        return true;
+    }
+
+    bool executeSellStep(const GameSnapshot& snap,
+                         const ResourceSellStep& step) {
+        if (step.amount <= 0) {
+            enterTradeInfoWait(snap, "Skipping empty sell step.");
+            return true;
+        }
+
+        suspendSchedulerForControllerWork();
+        engine_->clearPendingActions();
+        engine_->sellResource(static_cast<int32_t>(step.resource), step.amount);
+        logResourceFlow(std::string("Sold ") + std::to_string(step.amount) +
+                        " " + resourceTypeName(step.resource));
+        enterTradeInfoWait(snap, "Waiting for trade refresh after sell.", RESOURCE_ACTION_COOLDOWN_MS);
+        return true;
+    }
+
+    bool handleResourceAutomation(const GameSnapshot& snap, const BotConfig& runtime) {
+        if (!runtime.resources.enabled) {
+            if (resourceAutomationState_ != ResourceAutomationState::Idle) {
+                finishResourceAutomation(snap, runtime, "Resource automation disabled; controller state cleared.");
+            }
+            return false;
+        }
+
+        const bool cargoFull = snap.hero.isCargoFull();
+        const int64_t refineIntervalMs = static_cast<int64_t>(runtime.resources.refineIntervalSeconds) * 1000;
+        const bool periodicRefineReady =
+            lastRefineCompletedAtMs_ == 0 ||
+            (snap.timestampMs - lastRefineCompletedAtMs_ >= refineIntervalMs);
+
+        if (!cargoFull &&
+            resourceAutomationState_ != ResourceAutomationState::ReturningToWorkMap) {
+            if (resourceAutomationState_ != ResourceAutomationState::Idle) {
+                if (resourceFlowTriggeredByCargo_) {
+                    resourceIdleBackoffUntilMs_ = 0;
+                    return beginReturnToWorkingMapIfNeeded(
+                        snap,
+                        runtime,
+                        "Cargo no longer full; resource workflow finished.");
+                }
+            }
+        }
+
+        if (resourceAutomationState_ == ResourceAutomationState::Idle) {
+            if (snap.timestampMs < resourceIdleBackoffUntilMs_) {
+                return false;
+            }
+            if (cargoFull) {
+                resourceFlowTriggeredByCargo_ = true;
+                enterResourcesInfoWait(snap, "Cargo reached 100%; starting resource workflow.");
+            } else if (periodicRefineReady) {
+                resourceFlowTriggeredByCargo_ = false;
+                enterResourcesInfoWait(snap, "Periodic refine/enrich cycle started.");
+            } else {
+                return false;
+            }
+        }
+
+        if (resourceFlowStartedAtMs_ > 0 &&
+            snap.timestampMs - resourceFlowStartedAtMs_ > RESOURCE_FLOW_GLOBAL_TIMEOUT_MS) {
+            finishResourceAutomation(snap, runtime, "Resource flow global timeout; aborting.");
+            return false;
+        }
+
+        if (shouldYieldResourceAutomationToScheduler(snap, runtime)) {
+            return false;
+        }
+
+        switch (resourceAutomationState_) {
+            case ResourceAutomationState::Idle:
+                return false;
+
+            case ResourceAutomationState::WaitingForResourcesInfo: {
+                if (lastResourceInfoRequestAtMs_ > 0 &&
+                    snap.resources.hasResourcesInfo &&
+                    snap.resources.resourcesInfoUpdatedAtMs >= lastResourceInfoRequestAtMs_) {
+                    lastResourcePlan_ = ResourcePlanner::build(runtime.resources, snap.resources, cargoFull);
+
+                    if (!lastResourcePlan_.targetedRefineSteps.empty()) {
+                        return executeRefineStep(
+                            snap,
+                            lastResourcePlan_.targetedRefineSteps.front(),
+                            "targeted");
+                    }
+
+                    if (!lastResourcePlan_.compressionRefineSteps.empty()) {
+                        return executeRefineStep(
+                            snap,
+                            lastResourcePlan_.compressionRefineSteps.front(),
+                            "compression");
+                    }
+
+                    if (!lastResourcePlan_.enrichSteps.empty()) {
+                        return executeEnrichStep(snap, lastResourcePlan_.enrichSteps.front());
+                    }
+
+                    if (resourceFlowTriggeredByCargo_ && lastResourcePlan_.needsSellTrip) {
+                        if (isTradeMapName(snap.mapName)) {
+                            resourceAutomationState_ = ResourceAutomationState::MovingToTradeStation;
+                            logResourceFlow("Planner could not free cargo; already on trade map.");
+                            return true;
+                        }
+
+                        const auto tradeMap = selectNearestTradeMap(snap, runtime);
+                        if (!tradeMap.has_value()) {
+                            finishResourceAutomation(snap, runtime, "No reachable trade map found; aborting sell trip.");
+                            return false;
+                        }
+
+                        resourceTradeTargetMap_ = *tradeMap;
+                        resourceAutomationState_ = ResourceAutomationState::TravelingToTradeMap;
+                        logResourceFlow("Planner requires sell trip; heading to " + resourceTradeTargetMap_ + ".");
+                        return true;
+                    }
+
+                    lastRefineCompletedAtMs_ = snap.timestampMs;
+                    if (resourceFlowTriggeredByCargo_ && cargoFull) {
+                        finishResourceAutomation(snap, runtime, "Cargo still full but no more actions possible; backing off 30s.");
+                        resourceIdleBackoffUntilMs_ = snap.timestampMs + RESOURCE_IDLE_BACKOFF_MS;
+                    } else {
+                        finishResourceAutomation(snap, runtime, "Refine/enrich cycle completed.");
+                    }
+                    return false;
+                }
+
+                if (snap.timestampMs < nextResourceActionAtMs_) {
+                    return true;
+                }
+
+                if (lastResourceInfoRequestAtMs_ == 0 ||
+                    snap.timestampMs - lastResourceInfoRequestAtMs_ >= RESOURCE_INFO_RETRY_MS) {
+                    suspendSchedulerForControllerWork();
+                    engine_->requestResourcesInfo();
+                    lastResourceInfoRequestAtMs_ = snap.timestampMs;
+                    logResourceFlow("Requested fresh resources info.");
+                }
+                return true;
+            }
+
+            case ResourceAutomationState::TravelingToTradeMap: {
+                if (resourceTradeTargetMap_.empty()) {
+                    finishResourceAutomation(snap, runtime, "Trade destination missing; aborting sell trip.");
+                    return false;
+                }
+
+                if (snap.mapName == resourceTradeTargetMap_) {
+                    resourceAutomationState_ = ResourceAutomationState::MovingToTradeStation;
+                    logResourceFlow("Arrived on trade map " + snap.mapName + ".");
+                    return true;
+                }
+
+                if (!runTravelOnlySchedulerTick(snap, resourceTradeTargetMap_)) {
+                    finishResourceAutomation(snap, runtime, "Travel module missing; cannot execute sell trip.");
+                    return false;
+                }
+                return true;
+            }
+
+            case ResourceAutomationState::MovingToTradeStation: {
+                if (!isTradeMapName(snap.mapName)) {
+                    resourceAutomationState_ = ResourceAutomationState::TravelingToTradeMap;
+                    return true;
+                }
+
+                const auto* station = nearestTradeStation(snap);
+                if (!station) {
+                    if (snap.timestampMs - resourceFlowStartedAtMs_ > RESOURCE_INFO_TIMEOUT_MS) {
+                        finishResourceAutomation(snap, runtime, "Trade station entity missing; aborting sell trip.");
+                        return false;
+                    }
+                    return true;
+                }
+
+                const float distance = station->distanceTo(snap.hero.x, snap.hero.y);
+                if (distance <= static_cast<float>(TRADE_STATION_ARRIVAL_RANGE)) {
+                    suspendSchedulerForControllerWork();
+                    engine_->clearPendingActions();
+                    enterTradeInfoWait(snap, "Reached trade station; requesting sell inventory.");
+                    return true;
+                }
+
+                suspendSchedulerForControllerWork(false);
+                if (movement_) {
+                    movement_->move("ResourcesFlow",
+                                    snap,
+                                    Position(station->x, station->y),
+                                    MoveIntent::Travel);
+                } else {
+                    engine_->moveTo(station->x, station->y);
+                }
+                return true;
+            }
+
+            case ResourceAutomationState::WaitingForTradeInfo: {
+                if (lastTradeInfoRequestAtMs_ > 0 &&
+                    snap.resources.hasTradeInfo &&
+                    snap.resources.tradeInfoUpdatedAtMs >= lastTradeInfoRequestAtMs_) {
+                    const auto sellSteps = buildSellSteps(snap.resources, runtime.resources);
+                    if (!sellSteps.empty()) {
+                        return executeSellStep(snap, sellSteps.front());
+                    }
+
+                    return beginReturnToWorkingMapIfNeeded(
+                        snap,
+                        runtime,
+                        "Trade inventory emptied; returning to normal flow.");
+                }
+
+                if (snap.timestampMs < nextResourceActionAtMs_) {
+                    return true;
+                }
+
+                if (lastTradeInfoRequestAtMs_ == 0 ||
+                    snap.timestampMs - lastTradeInfoRequestAtMs_ >= RESOURCE_INFO_RETRY_MS) {
+                    suspendSchedulerForControllerWork();
+                    engine_->requestResourcesTradeInfo();
+                    lastTradeInfoRequestAtMs_ = snap.timestampMs;
+                    logResourceFlow("Requested fresh trade inventory.");
+                }
+                return true;
+            }
+
+            case ResourceAutomationState::ReturningToWorkMap: {
+                if (runtime.map.workingMap.empty() || snap.mapName == runtime.map.workingMap) {
+                    finishResourceAutomation(snap, runtime, "Returned from trade trip.");
+                    return false;
+                }
+
+                if (!runTravelOnlySchedulerTick(snap, runtime.map.workingMap)) {
+                    finishResourceAutomation(snap, runtime, "Travel module missing; cannot return to working map.");
+                    return false;
+                }
+                return true;
+            }
+
+            default:
+                return false;
         }
     }
 

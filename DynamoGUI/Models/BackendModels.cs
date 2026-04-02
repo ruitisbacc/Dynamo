@@ -66,6 +66,13 @@ public sealed class ResourceInventorySnapshot
     public long Xureon { get; set; }
 }
 
+public sealed class EnrichmentModuleSnapshot
+{
+    public string Module { get; set; } = string.Empty;
+    public string Material { get; set; } = string.Empty;
+    public int Amount { get; set; }
+}
+
 public sealed class BackendStatusSnapshot
 {
     public string ConnectionState { get; set; } = "Disconnected";
@@ -120,6 +127,7 @@ public sealed class BackendStatusSnapshot
     public string TravelDestination { get; set; } = "-";
     public string RoamingDecision { get; set; } = "Idle";
     public ResourceInventorySnapshot CurrentResources { get; set; } = new();
+    public EnrichmentModuleSnapshot[] Enrichments { get; set; } = [];
     public SessionStatsSnapshot Stats { get; set; } = new();
     public MapEntity[] MapEntities { get; set; } = [];
 }

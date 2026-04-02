@@ -25,6 +25,10 @@ constexpr int32_t kMinNpcRange = 200;
 constexpr int32_t kMaxNpcRange = 800;
 constexpr int32_t kMinLowHpFollowPercent = 1;
 constexpr int32_t kMaxLowHpFollowPercent = 100;
+constexpr int32_t kMinResourcePriority = 1;
+constexpr int32_t kMaxResourcePriority = 4;
+constexpr int32_t kMinRefineIntervalSeconds = 30;
+constexpr int32_t kMaxRefineIntervalSeconds = 600;
 
 int32_t boxPriority(BoxType type) {
     switch (type) {
@@ -37,6 +41,76 @@ int32_t boxPriority(BoxType type) {
 
 bool containsBoxType(const std::vector<BoxType>& values, BoxType type) {
     return std::find(values.begin(), values.end(), type) != values.end();
+}
+
+const char* resourceModuleLabel(ResourceModuleType moduleType) {
+    switch (moduleType) {
+        case ResourceModuleType::Lasers: return "lasers";
+        case ResourceModuleType::Rockets: return "rockets";
+        case ResourceModuleType::Shields: return "shields";
+        case ResourceModuleType::Speed: return "speed";
+        default: return "resource module";
+    }
+}
+
+void normalizeResourceModuleSettings(ResourceModuleSettings& settings, ResourceModuleType moduleType) {
+    settings.priority = std::clamp(settings.priority, kMinResourcePriority, kMaxResourcePriority);
+    if (!isAllowedEnrichmentMaterial(moduleType, settings.material)) {
+        settings.material = defaultResourceMaterial(moduleType);
+    }
+}
+
+void normalizeResourceAutomationSettings(ResourceAutomationSettings& resources) {
+    resources.refineIntervalSeconds = std::clamp(resources.refineIntervalSeconds,
+                                                  kMinRefineIntervalSeconds,
+                                                  kMaxRefineIntervalSeconds);
+    normalizeResourceModuleSettings(resources.speed, ResourceModuleType::Speed);
+    normalizeResourceModuleSettings(resources.shields, ResourceModuleType::Shields);
+    normalizeResourceModuleSettings(resources.lasers, ResourceModuleType::Lasers);
+    normalizeResourceModuleSettings(resources.rockets, ResourceModuleType::Rockets);
+
+    struct PriorityEntry {
+        ResourceModuleSettings* settings{nullptr};
+        int32_t fallbackPriority{0};
+    };
+
+    std::array<PriorityEntry, 4> ordered = {{
+        {&resources.speed, defaultResourcePriority(ResourceModuleType::Speed)},
+        {&resources.shields, defaultResourcePriority(ResourceModuleType::Shields)},
+        {&resources.lasers, defaultResourcePriority(ResourceModuleType::Lasers)},
+        {&resources.rockets, defaultResourcePriority(ResourceModuleType::Rockets)},
+    }};
+
+    std::stable_sort(
+        ordered.begin(),
+        ordered.end(),
+        [](const PriorityEntry& lhs, const PriorityEntry& rhs) {
+            if (lhs.settings->priority != rhs.settings->priority) {
+                return lhs.settings->priority < rhs.settings->priority;
+            }
+            return lhs.fallbackPriority < rhs.fallbackPriority;
+        }
+    );
+
+    int32_t normalizedPriority = kMinResourcePriority;
+    for (auto& entry : ordered) {
+        entry.settings->priority = normalizedPriority++;
+    }
+}
+
+void validateResourceModuleSettings(const ResourceModuleSettings& settings,
+                                    ResourceModuleType moduleType,
+                                    std::vector<std::string>& errors) {
+    if (settings.priority < kMinResourcePriority || settings.priority > kMaxResourcePriority) {
+        errors.emplace_back(
+            std::string(resourceModuleLabel(moduleType)) + " priority must be in range 1-4"
+        );
+    }
+    if (!isAllowedEnrichmentMaterial(moduleType, settings.material)) {
+        errors.emplace_back(
+            std::string("Invalid material for ") + resourceModuleLabel(moduleType)
+        );
+    }
 }
 
 std::string joinErrors(const std::vector<std::string>& errors) {
@@ -453,6 +527,10 @@ std::vector<std::string> ConfigService::validateProfile(const BotProfile& profil
     if (profile.deathDisconnect.cooldownMinutes < 0) {
         errors.emplace_back("death disconnect cooldown must not be negative");
     }
+    validateResourceModuleSettings(profile.resources.speed, ResourceModuleType::Speed, errors);
+    validateResourceModuleSettings(profile.resources.shields, ResourceModuleType::Shields, errors);
+    validateResourceModuleSettings(profile.resources.lasers, ResourceModuleType::Lasers, errors);
+    validateResourceModuleSettings(profile.resources.rockets, ResourceModuleType::Rockets, errors);
 
     std::vector<std::string> npcNames;
     npcNames.reserve(profile.npcRules.size());
@@ -510,6 +588,7 @@ void ConfigService::normalizeProfile(BotProfile& profile) {
         );
     };
 
+    profile.schemaVersion = std::max(profile.schemaVersion, 2);
     profile.id = sanitizeProfileId(profile.id.empty() ? profile.displayName : profile.id);
     if (profile.displayName.empty()) {
         profile.displayName = profile.id;
@@ -538,6 +617,7 @@ void ConfigService::normalizeProfile(BotProfile& profile) {
     profile.adminDisconnect.cooldownMinutes = std::max(0, profile.adminDisconnect.cooldownMinutes);
     profile.deathDisconnect.deathThreshold = std::max(1, profile.deathDisconnect.deathThreshold);
     profile.deathDisconnect.cooldownMinutes = std::max(0, profile.deathDisconnect.cooldownMinutes);
+    normalizeResourceAutomationSettings(profile.resources);
 
     std::vector<BoxType> dedupedBoxes;
     dedupedBoxes.reserve(profile.boxTypes.size());
@@ -691,6 +771,7 @@ BotConfig ConfigService::resolveRuntimeConfig(const BotProfile& profile) {
     runtime.admin.disconnectWhenSeen = profile.adminDisconnect.enabled;
     runtime.admin.disconnectCooldownMinutes = profile.adminDisconnect.cooldownMinutes;
 
+    runtime.resources = profile.resources;
     runtime.autobuy = profile.autobuy;
 
     return normalizeLegacyRuntime(std::move(runtime));
@@ -711,6 +792,7 @@ BotConfig ConfigService::normalizeLegacyRuntime(BotConfig runtime) {
     runtime.admin.droneCountThreshold = kFixedAdminDroneThreshold;
     runtime.collect.collectDuringCombat =
         runtime.collect.collectDuringCombat && runtime.mode == BotMode::KillCollect;
+    normalizeResourceAutomationSettings(runtime.resources);
     switch (runtime.safety.fleeMode) {
         case SafetyFleeMode::None:
         case SafetyFleeMode::OnAttack:

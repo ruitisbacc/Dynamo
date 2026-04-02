@@ -106,3 +106,43 @@ public sealed class ResourceAmountViewModel : ViewModelBase
         Amount = amount;
     }
 }
+
+public sealed class EnrichmentRowViewModel : ViewModelBase
+{
+    private string _material = "-";
+    private string _display = "-";
+
+    public EnrichmentRowViewModel(string module, string unit)
+    {
+        Module = module;
+        Unit = unit;
+    }
+
+    public string Module { get; }
+    public string Unit { get; }
+
+    public string Material
+    {
+        get => _material;
+        private set => SetProperty(ref _material, value);
+    }
+
+    public string Display
+    {
+        get => _display;
+        private set => SetProperty(ref _display, value);
+    }
+
+    public void Update(string material, int amount)
+    {
+        if (string.IsNullOrEmpty(material) || amount <= 0)
+        {
+            Material = "-";
+            Display = "-";
+            return;
+        }
+
+        Material = material;
+        Display = $"{amount.ToString("N0", CultureInfo.CurrentCulture)} {Unit}";
+    }
+}

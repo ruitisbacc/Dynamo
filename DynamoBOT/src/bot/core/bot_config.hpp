@@ -13,6 +13,8 @@
 #include <cstdint>
 #include <nlohmann/json.hpp>
 
+#include "game/resource_state.hpp"
+
 namespace dynamo {
 
 /**
@@ -62,6 +64,85 @@ NLOHMANN_JSON_SERIALIZE_ENUM(SafetyFleeMode, {
     {SafetyFleeMode::OnAttack, "OnAttack"},
     {SafetyFleeMode::OnEnemySeen, "OnEnemySeen"}
 })
+
+enum class EnrichmentMaterial : int32_t {
+    Darkonit = static_cast<int32_t>(ResourceType::Darkonit),
+    Uranit = static_cast<int32_t>(ResourceType::Uranit),
+    Azurit = static_cast<int32_t>(ResourceType::Azurit),
+    Dungid = static_cast<int32_t>(ResourceType::Dungid),
+    Xureon = static_cast<int32_t>(ResourceType::Xureon),
+};
+
+NLOHMANN_JSON_SERIALIZE_ENUM(EnrichmentMaterial, {
+    {EnrichmentMaterial::Darkonit, "Darkonit"},
+    {EnrichmentMaterial::Uranit, "Uranit"},
+    {EnrichmentMaterial::Azurit, "Azurit"},
+    {EnrichmentMaterial::Dungid, "Dungid"},
+    {EnrichmentMaterial::Xureon, "Xureon"}
+})
+
+inline constexpr ResourceType toResourceType(EnrichmentMaterial material) {
+    return static_cast<ResourceType>(static_cast<int32_t>(material));
+}
+
+inline constexpr int32_t defaultResourcePriority(ResourceModuleType moduleType) {
+    switch (moduleType) {
+        case ResourceModuleType::Speed: return 1;
+        case ResourceModuleType::Shields: return 2;
+        case ResourceModuleType::Lasers: return 3;
+        case ResourceModuleType::Rockets: return 4;
+        default: return 4;
+    }
+}
+
+inline constexpr EnrichmentMaterial defaultResourceMaterial(ResourceModuleType moduleType) {
+    switch (moduleType) {
+        case ResourceModuleType::Speed:
+        case ResourceModuleType::Shields:
+            return EnrichmentMaterial::Uranit;
+        case ResourceModuleType::Lasers:
+        case ResourceModuleType::Rockets:
+            return EnrichmentMaterial::Darkonit;
+        default:
+            return EnrichmentMaterial::Uranit;
+    }
+}
+
+inline constexpr bool isAllowedEnrichmentMaterial(ResourceModuleType moduleType,
+                                                  EnrichmentMaterial material) {
+    switch (moduleType) {
+        case ResourceModuleType::Lasers:
+        case ResourceModuleType::Rockets:
+            return material == EnrichmentMaterial::Darkonit ||
+                   material == EnrichmentMaterial::Uranit ||
+                   material == EnrichmentMaterial::Dungid;
+        case ResourceModuleType::Shields:
+        case ResourceModuleType::Speed:
+            return material == EnrichmentMaterial::Uranit ||
+                   material == EnrichmentMaterial::Azurit ||
+                   material == EnrichmentMaterial::Xureon;
+        default:
+            return false;
+    }
+}
+
+struct ResourceModuleSettings {
+    bool enabled{false};
+    EnrichmentMaterial material{EnrichmentMaterial::Uranit};
+    int32_t priority{1};
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ResourceModuleSettings, enabled, material, priority)
+
+struct ResourceAutomationSettings {
+    bool enabled{false};
+    bool sellWhenBlocked{false};
+    int32_t refineIntervalSeconds{120};
+    ResourceModuleSettings lasers{false, EnrichmentMaterial::Darkonit, 3};
+    ResourceModuleSettings rockets{false, EnrichmentMaterial::Darkonit, 4};
+    ResourceModuleSettings shields{false, EnrichmentMaterial::Uranit, 2};
+    ResourceModuleSettings speed{false, EnrichmentMaterial::Uranit, 1};
+};
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ResourceAutomationSettings, enabled, sellWhenBlocked, refineIntervalSeconds, lasers, rockets, shields, speed)
 
 /**
  * @brief NPC target configuration
@@ -274,12 +355,13 @@ struct BotConfig {
     MapConfig map;
     ReviveConfig revive;
     AdminConfig admin;
+    ResourceAutomationSettings resources;
     AutobuyConfig autobuy;
 
     // Global settings
     BotMode mode{BotMode::KillCollect};
     int32_t tickRateMs{16};             // fixed minimum tick interval (~60 Hz)
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(BotConfig, safety, combat, collect, roaming, map, revive, admin, autobuy, mode, tickRateMs)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(BotConfig, safety, combat, collect, roaming, map, revive, admin, resources, autobuy, mode, tickRateMs)
 
 } // namespace dynamo

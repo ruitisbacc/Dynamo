@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "default",
   "displayName": "Default",
   "workingMap": "R-1",
@@ -101,5 +101,30 @@
     "enabled": false,
     "deathThreshold": 5,
     "cooldownMinutes": 15
+  },
+  "resources": {
+    "enabled": false,
+    "sellWhenBlocked": false,
+    "refineIntervalSeconds": 120,
+    "lasers": {
+      "enabled": false,
+      "material": "Darkonit",
+      "priority": 3
+    },
+    "rockets": {
+      "enabled": false,
+      "material": "Darkonit",
+      "priority": 4
+    },
+    "shields": {
+      "enabled": false,
+      "material": "Uranit",
+      "priority": 2
+    },
+    "speed": {
+      "enabled": false,
+      "material": "Uranit",
+      "priority": 1
+    }
   }
 }

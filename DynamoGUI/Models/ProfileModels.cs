@@ -17,6 +17,15 @@ public enum SafetyFleeMode
     OnEnemySeen = 2,
 }
 
+public enum EnrichmentMaterial
+{
+    Darkonit = 4,
+    Uranit = 5,
+    Azurit = 6,
+    Dungid = 7,
+    Xureon = 8,
+}
+
 public sealed class NpcVariantRule
 {
     public bool Enabled { get; set; }
@@ -76,9 +85,27 @@ public sealed class AutobuyConfig
     public bool RocketTnc130 { get; set; }
 }
 
+public sealed class ResourceModuleSettings
+{
+    public bool Enabled { get; set; }
+    public EnrichmentMaterial Material { get; set; } = EnrichmentMaterial.Uranit;
+    public int Priority { get; set; } = 1;
+}
+
+public sealed class ResourceAutomationSettings
+{
+    public bool Enabled { get; set; }
+    public bool SellWhenBlocked { get; set; }
+    public int RefineIntervalSeconds { get; set; } = 120;
+    public ResourceModuleSettings Lasers { get; set; } = new() { Material = EnrichmentMaterial.Darkonit, Priority = 3 };
+    public ResourceModuleSettings Rockets { get; set; } = new() { Material = EnrichmentMaterial.Darkonit, Priority = 4 };
+    public ResourceModuleSettings Shields { get; set; } = new() { Material = EnrichmentMaterial.Uranit, Priority = 2 };
+    public ResourceModuleSettings Speed { get; set; } = new() { Material = EnrichmentMaterial.Uranit, Priority = 1 };
+}
+
 public sealed class BotProfile
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
     public string Id { get; set; } = "default";
     public string DisplayName { get; set; } = "Default";
     public string WorkingMap { get; set; } = "R-1";
@@ -92,6 +119,7 @@ public sealed class BotProfile
     public SafetyPolicy Safety { get; set; } = new();
     public AdminDisconnectPolicy AdminDisconnect { get; set; } = new();
     public DeathDisconnectPolicy DeathDisconnect { get; set; } = new();
+    public ResourceAutomationSettings Resources { get; set; } = new();
     public AutobuyConfig Autobuy { get; set; } = new();
     public BotProfile DeepClone() => JsonDefaults.DeepClone(this);
 }

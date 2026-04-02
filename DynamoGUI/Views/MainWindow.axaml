@@ -422,6 +422,56 @@
                   </ItemsControl>
                 </StackPanel>
               </Border>
+
+              <Border Classes="shell-surface" Padding="16,14">
+                <StackPanel Spacing="10">
+                  <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
+                    <TextBlock Text="Enrichment"
+                               FontSize="13"
+                               FontWeight="SemiBold" />
+                    <TextBlock Grid.Column="1"
+                               Text="Material"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               HorizontalAlignment="Right" />
+                    <TextBlock Grid.Column="2"
+                               Text="Remaining"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextMutedBrush}"
+                               HorizontalAlignment="Right" />
+                  </Grid>
+
+                  <Border Classes="separator" />
+
+                  <ItemsControl ItemsSource="{Binding EnrichmentRows}">
+                    <ItemsControl.ItemsPanel>
+                      <ItemsPanelTemplate>
+                        <StackPanel Spacing="6" />
+                      </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                      <DataTemplate x:DataType="vm:EnrichmentRowViewModel">
+                        <Grid ColumnDefinitions="*,120,120" ColumnSpacing="12">
+                          <TextBlock Text="{Binding Module}"
+                                     FontSize="12" />
+                          <TextBlock Grid.Column="1"
+                                     Text="{Binding Material}"
+                                     FontSize="12"
+                                     FontFamily="Consolas, Cascadia Code, monospace"
+                                     HorizontalAlignment="Right" />
+                          <TextBlock Grid.Column="2"
+                                     Text="{Binding Display}"
+                                     FontSize="12"
+                                     FontFamily="Consolas, Cascadia Code, monospace"
+                                     HorizontalAlignment="Right" />
+                        </Grid>
+                      </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                  </ItemsControl>
+                </StackPanel>
+              </Border>
             </StackPanel>
           </ScrollViewer>
         </Border>

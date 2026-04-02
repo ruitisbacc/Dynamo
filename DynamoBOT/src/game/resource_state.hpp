@@ -50,6 +50,31 @@ inline constexpr bool isValidResourceModuleType(int32_t value) {
     return value >= 0 && value < static_cast<int32_t>(kResourceModuleTypeCount);
 }
 
+inline constexpr const char* resourceTypeName(ResourceType type) {
+    switch (type) {
+        case ResourceType::Cerium: return "Cerium";
+        case ResourceType::Mercury: return "Mercury";
+        case ResourceType::Erbium: return "Erbium";
+        case ResourceType::Piritid: return "Piritid";
+        case ResourceType::Darkonit: return "Darkonit";
+        case ResourceType::Uranit: return "Uranit";
+        case ResourceType::Azurit: return "Azurit";
+        case ResourceType::Dungid: return "Dungid";
+        case ResourceType::Xureon: return "Xureon";
+        default: return "Unknown";
+    }
+}
+
+inline constexpr const char* resourceModuleTypeName(ResourceModuleType type) {
+    switch (type) {
+        case ResourceModuleType::Lasers: return "Lasers";
+        case ResourceModuleType::Rockets: return "Rockets";
+        case ResourceModuleType::Shields: return "Shields";
+        case ResourceModuleType::Speed: return "Speed";
+        default: return "Unknown";
+    }
+}
+
 struct ResourceStackSnapshot {
     int32_t amount{0};
     int32_t maxRefineAmount{0};

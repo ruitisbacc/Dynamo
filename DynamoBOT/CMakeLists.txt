@@ -68,6 +68,7 @@ endif()
 set(DYNAMO_BACKEND_SOURCES
     src/core/config.cpp
     src/config/config_service.cpp
+    src/bot/resources/resource_planner.cpp
     src/network/clients/http_client.cpp
     src/network/codec/kryo_serializer.cpp
     src/network/clients/kryo_client.cpp
