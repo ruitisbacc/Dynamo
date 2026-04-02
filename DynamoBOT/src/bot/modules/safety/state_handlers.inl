@@ -99,12 +99,19 @@
             return;
         }
 
-        if (hpPercent < config_.repairHpPercent) {
+        if (hpPercent < config_.repairHpPercent &&
+            !shouldDelayRepairForNpcKill(snap, hpPercent, assessment)) {
             startRepairing(snap, summary, "Repairing");
             return;
         }
 
-        publishTelemetry(snap, summary, "Monitoring");
+        publishTelemetry(
+            snap,
+            summary,
+            shouldDelayRepairForNpcKill(snap, hpPercent, assessment)
+                ? "FinishNpcBeforeRepair"
+                : "Monitoring"
+        );
     }
 
     void handleFleeing(const GameSnapshot& snap,
@@ -218,16 +225,20 @@
                         double hpPercent,
                         const ThreatSummary& summary) {
         const auto assessment = assessEnemyFlee(snap, summary);
+        const Position heroPos(snap.hero.x, snap.hero.y);
         const bool holdingStation =
             escapeAnchor_.has_value() && escapeAnchor_->kind == RepairAnchorKind::Station;
         const bool atPortal =
             escapeAnchor_.has_value() &&
             escapeAnchor_->kind == RepairAnchorKind::Portal;
-        const bool portalIsSafe = atPortal &&
-            !escapePortalMap_.empty() &&
-            !isUnsafePortalTarget(escapePortalMap_);
+        const bool jumpToOwnSafeMap = atPortal && isOwnSafePortalTarget(escapePortalMap_);
+        const bool jumpToEnemyFactionMap =
+            atPortal &&
+            isEnemyFactionPortalTarget(escapePortalMap_) &&
+            shouldJumpEnemyFactionPortal(heroPos, assessment);
+        const bool shouldJumpPortal = jumpToOwnSafeMap || jumpToEnemyFactionMap;
 
-        if (atPortal && portalIsSafe) {
+        if (atPortal && shouldJumpPortal) {
             std::cout << "[Safety] Jumping through portal to " << escapePortalMap_ << "\n";
             // Clear stale actions BEFORE sending teleport so the teleport
             // isn't accidentally flushed along with old movement commands.
@@ -244,14 +255,13 @@
             return;
         }
 
-        // Log once when we first discover the portal is unsafe
-        if (atPortal && !portalIsSafe && !unsafePortalLogged_) {
-            std::cout << "[Safety] Portal to " << escapePortalMap_
-                      << " is unsafe, holding position\n";
+        if (atPortal && !shouldJumpPortal && !unsafePortalLogged_) {
+            std::cout << "[Safety] Holding at portal to " << escapePortalMap_
+                      << " because jump conditions are not met\n";
             unsafePortalLogged_ = true;
         }
 
-        if (!assessment.active && hpPercent >= config_.fullHpPercent) {
+        if (!assessment.active && hpPercent >= config_.repairHpPercent) {
             if (movement_) {
                 movement_->release(name());
             }

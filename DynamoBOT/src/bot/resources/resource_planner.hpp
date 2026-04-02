@@ -32,6 +32,11 @@ struct ResourceModulePlan {
     int32_t activeMaterialType{-1};
     int32_t activeMaterialAmount{0};
     int32_t plannedAmount{0};
+    std::vector<ResourceRefinePlanStep> targetedRefineSteps;
+    bool hasEnrichStep{false};
+    ResourceEnrichPlanStep enrichStep{};
+    std::array<int32_t, kResourceTypeCount> projectedInventoryAfter{};
+    int32_t projectedCargoUnitsAfter{0};
 };
 
 struct ResourceAutomationPlan {

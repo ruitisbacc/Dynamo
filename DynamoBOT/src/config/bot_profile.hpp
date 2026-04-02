@@ -64,8 +64,9 @@ struct ConfigSlotSelection {
     int32_t roaming{1};
     int32_t flying{2};
     int32_t shooting{1};
+    int32_t collect{2};
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ConfigSlotSelection, roaming, flying, shooting)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(ConfigSlotSelection, roaming, flying, shooting, collect)
 
 struct SafetyPolicy {
     int32_t emergencyHpPercent{15};

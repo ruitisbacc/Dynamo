@@ -6,7 +6,8 @@
   "configSlots": {
     "roaming": 1,
     "flying": 2,
-    "shooting": 1
+    "shooting": 1,
+    "collect": 2
   },
   "kill": true,
   "collect": true,

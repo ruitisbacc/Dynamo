@@ -74,6 +74,40 @@
         return threatTracker_.getFreshEnemy(playerId, nowMs, config_.enemySeenTimeoutMs);
     }
 
+    [[nodiscard]] std::vector<EnemyInfo> collectVisibleEnemies(const GameSnapshot& snap) const {
+        std::vector<EnemyInfo> result;
+        result.reserve(snap.entities.enemies.size());
+
+        for (const auto& ship : snap.entities.enemies) {
+            if (auto tracked = findFreshEnemyById(ship.id, snap.timestampMs); tracked.has_value()) {
+                result.push_back(*tracked);
+                continue;
+            }
+
+            const bool attackingUs = ship.selectedTarget == snap.hero.id && ship.isAttacking;
+            result.push_back(EnemyInfo{
+                .playerId = ship.id,
+                .username = ship.name,
+                .firstSeenTime = snap.timestampMs,
+                .lastSeenTime = snap.timestampMs,
+                .lastAggressionTime = attackingUs ? snap.timestampMs : 0,
+                .sightings = 1,
+                .droneCount = ship.droneCount,
+                .isAttackingUs = attackingUs,
+                .isAdmin =
+                    ship.droneCount > adminConfig_.droneCountThreshold ||
+                    detail::isKnownAdminName(ship.name),
+                .isMoving = ship.isMoving,
+                .lastX = ship.x,
+                .lastY = ship.y,
+                .lastTargetX = ship.targetX,
+                .lastTargetY = ship.targetY,
+            });
+        }
+
+        return result;
+    }
+
     [[nodiscard]] std::optional<EnemyInfo> pickNearestEnemy(const std::vector<EnemyInfo>& enemies,
                                                             const Position& heroPos) const {
         if (enemies.empty()) {
@@ -93,17 +127,45 @@
         return best ? std::optional<EnemyInfo>(*best) : std::nullopt;
     }
 
+    [[nodiscard]] bool isActivelyAttackingNpc(const GameSnapshot& snap) const {
+        if (!snap.hero.isAttacking || snap.hero.selectedTarget == 0) {
+            return false;
+        }
+
+        return std::any_of(
+            snap.entities.npcs.begin(),
+            snap.entities.npcs.end(),
+            [&snap](const ShipInfo& npc) { return npc.id == snap.hero.selectedTarget; }
+        );
+    }
+
+    [[nodiscard]] bool shouldDelayRepairForNpcKill(const GameSnapshot& snap,
+                                                   double hpPercent,
+                                                   const EnemyFleeAssessment& assessment) const {
+        if (hpPercent <= config_.minHpPercent || hpPercent >= config_.repairHpPercent) {
+            return false;
+        }
+
+        if (assessment.active || assessment.adminOverride) {
+            return false;
+        }
+
+        return isActivelyAttackingNpc(snap);
+    }
+
     [[nodiscard]] EnemyFleeAssessment assessEnemyFlee(const GameSnapshot& snap,
                                                       const ThreatSummary& summary) const {
         EnemyFleeAssessment assessment;
-        assessment.visibleEnemies = threatTracker_.freshEnemies(
-            snap.timestampMs,
-            config_.enemySeenTimeoutMs
-        );
+        assessment.visibleEnemies = collectVisibleEnemies(snap);
 
         const Position heroPos(snap.hero.x, snap.hero.y);
         if (summary.primaryThreatId != 0) {
-            assessment.primaryThreat = findFreshEnemyById(summary.primaryThreatId, snap.timestampMs);
+            for (const auto& enemy : assessment.visibleEnemies) {
+                if (enemy.playerId == summary.primaryThreatId) {
+                    assessment.primaryThreat = enemy;
+                    break;
+                }
+            }
         }
 
         const auto chooseRememberedAggressor = [&]() -> std::optional<EnemyInfo> {
@@ -155,15 +217,6 @@
                 break;
 
             case SafetyFleeMode::OnAttack:
-                if (summary.beingAttacked) {
-                    assessment.active = true;
-                    if (const auto* attacker = threatTracker_.getAttacker(snap.timestampMs);
-                        attacker != nullptr) {
-                        assessment.primaryThreat = *attacker;
-                        break;
-                    }
-                }
-
                 assessment.primaryThreat = chooseRememberedAggressor();
                 assessment.active = assessment.primaryThreat.has_value();
                 break;
@@ -186,12 +239,18 @@
         }
 
         if (anchor.kind == RepairAnchorKind::Portal) {
-            if (!anchor.label.empty() && isUnsafePortalTarget(anchor.label)) {
-                score += 5000.0;  // Heavily penalize unsafe destinations
-            } else if (!anchor.label.empty() && isAvoidedMap(anchor.label)) {
-                score += 3200.0;
+            if (isNeverJumpPortalTarget(anchor.label)) {
+                score += 9000.0;
+            } else if (isOwnSafePortalTarget(anchor.label)) {
+                score -= 260.0;
+            } else if (isEnemyFactionPortalTarget(anchor.label)) {
+                if (shouldJumpEnemyFactionPortal(heroPos, assessment)) {
+                    score -= 140.0;
+                } else {
+                    score += 4200.0;
+                }
             } else {
-                score -= 180.0;
+                score += 2600.0;
             }
         }
 
@@ -243,21 +302,45 @@
     void publishTelemetry(const GameSnapshot& snap,
                           const ThreatSummary& summary,
                           std::string_view decision) {
+        const auto assessment = assessEnemyFlee(snap, summary);
+        const Position heroPos(snap.hero.x, snap.hero.y);
+        int32_t visibleAttackers = 0;
+        int32_t visibleCloseEnemies = 0;
+        constexpr double kTelemetryCloseThreatRange = 2200.0;
+
+        for (const auto& enemy : assessment.visibleEnemies) {
+            if (enemy.isAttackingUs) {
+                ++visibleAttackers;
+            }
+            if (heroPos.distanceTo(Position(enemy.lastX, enemy.lastY)) <= kTelemetryCloseThreatRange) {
+                ++visibleCloseEnemies;
+            }
+        }
+
+        int32_t primaryThreatId = summary.primaryThreatId;
+        double primaryThreatDistance = summary.primaryThreatDistance;
+        if (assessment.primaryThreat.has_value()) {
+            primaryThreatId = assessment.primaryThreat->playerId;
+            primaryThreatDistance = heroPos.distanceTo(
+                Position(assessment.primaryThreat->lastX, assessment.primaryThreat->lastY)
+            );
+        }
+
         std::lock_guard<std::mutex> lock(telemetryMutex_);
         telemetry_.state = state_;
         telemetry_.threatLevel = summary.level;
         telemetry_.decision = std::string(decision);
         telemetry_.escapeMap = escapePortalMap_;
         telemetry_.escapePortalId = escapePortalId_;
-        telemetry_.visibleEnemies = summary.visibleEnemies;
-        telemetry_.closeEnemies = summary.closeEnemies;
-        telemetry_.attackers = summary.attackers;
-        telemetry_.primaryThreatId = summary.primaryThreatId;
+        telemetry_.visibleEnemies = static_cast<int32_t>(assessment.visibleEnemies.size());
+        telemetry_.closeEnemies = visibleCloseEnemies;
+        telemetry_.attackers = visibleAttackers;
+        telemetry_.primaryThreatId = primaryThreatId;
         telemetry_.hpPercent = static_cast<float>(calculateHpPercent(snap));
-        telemetry_.primaryThreatDistance = static_cast<float>(summary.primaryThreatDistance);
+        telemetry_.primaryThreatDistance = static_cast<float>(primaryThreatDistance);
         telemetry_.fleeTargetX = static_cast<float>(fleeTarget_.x);
         telemetry_.fleeTargetY = static_cast<float>(fleeTarget_.y);
-        telemetry_.beingAttacked = summary.beingAttacked;
+        telemetry_.beingAttacked = visibleAttackers > 0;
         telemetry_.adminSeenRecently =
             threatTracker_.adminSeenRecently(
                 snap.timestampMs,
@@ -276,46 +359,117 @@
                mapConfig_.avoidMaps.end();
     }
 
+    [[nodiscard]] static char factionPrefixFor(int32_t heroFraction) {
+        switch (heroFraction) {
+            case 1: return 'R';
+            case 2: return 'E';
+            case 3: return 'U';
+            default: return '\0';
+        }
+    }
+
+    [[nodiscard]] static bool isFactionMapPrefix(char prefix) {
+        return prefix == 'R' || prefix == 'E' || prefix == 'U';
+    }
+
+    [[nodiscard]] static bool tryParseFactionHomeMap(std::string_view mapName,
+                                                     char& prefixOut,
+                                                     int32_t& mapNumberOut) {
+        if (mapName.size() < 3 || mapName[1] != '-') {
+            return false;
+        }
+
+        const char prefix = mapName[0];
+        if (!isFactionMapPrefix(prefix)) {
+            return false;
+        }
+
+        const char digit = mapName[2];
+        if (digit < '1' || digit > '9') {
+            return false;
+        }
+
+        prefixOut = prefix;
+        mapNumberOut = digit - '0';
+        return true;
+    }
+
+    [[nodiscard]] bool isNeverJumpPortalTarget(const std::string& targetMapName) const {
+        return targetMapName.empty() ||
+               isAvoidedMap(targetMapName) ||
+               targetMapName == "T-1" ||
+               targetMapName == "G-1";
+    }
+
+    [[nodiscard]] bool isOwnSafePortalTarget(const std::string& targetMapName) const {
+        if (isNeverJumpPortalTarget(targetMapName)) {
+            return false;
+        }
+
+        char targetPrefix = '\0';
+        int32_t mapNumber = 0;
+        if (!tryParseFactionHomeMap(targetMapName, targetPrefix, mapNumber) || mapNumber > 7) {
+            return false;
+        }
+
+        const char ownPrefix = factionPrefixFor(engine_->hero().fraction);
+        return ownPrefix != '\0' && targetPrefix == ownPrefix;
+    }
+
+    [[nodiscard]] bool isEnemyFactionPortalTarget(const std::string& targetMapName) const {
+        if (isNeverJumpPortalTarget(targetMapName)) {
+            return false;
+        }
+
+        char targetPrefix = '\0';
+        int32_t mapNumber = 0;
+        if (!tryParseFactionHomeMap(targetMapName, targetPrefix, mapNumber) || mapNumber > 7) {
+            return false;
+        }
+
+        const char ownPrefix = factionPrefixFor(engine_->hero().fraction);
+        return ownPrefix != '\0' && targetPrefix != ownPrefix;
+    }
+
+    [[nodiscard]] double nearestVisibleEnemyDistance(const Position& heroPos,
+                                                     const EnemyFleeAssessment& assessment) const {
+        double bestDistance = std::numeric_limits<double>::max();
+        for (const auto& enemy : assessment.visibleEnemies) {
+            bestDistance = std::min(
+                bestDistance,
+                heroPos.distanceTo(Position(enemy.lastX, enemy.lastY))
+            );
+        }
+
+        if (bestDistance == std::numeric_limits<double>::max()) {
+            return 0.0;
+        }
+        return bestDistance;
+    }
+
+    [[nodiscard]] bool shouldJumpEnemyFactionPortal(const Position& heroPos,
+                                                    const EnemyFleeAssessment& assessment) const {
+        for (const auto& enemy : assessment.visibleEnemies) {
+            if (enemy.isAttackingUs) {
+                return true;
+            }
+        }
+
+        if (config_.fleeMode != SafetyFleeMode::OnEnemySeen || !assessment.active) {
+            return false;
+        }
+
+        const double nearestEnemyDistance = nearestVisibleEnemyDistance(heroPos, assessment);
+        return nearestEnemyDistance > 0.0 && nearestEnemyDistance < 800.0;
+    }
+
     /**
      * @brief Check if a portal target map is unsafe (enemy faction, PvP, or avoided).
      *
      * Faction map prefixes: R=1, E=2, U=3.
-     * A map is unsafe if it belongs to a different faction's home territory (X-1..X-4),
+     * A map is unsafe if it belongs to a different faction's home territory (X-1..X-7),
      * or is a known PvP map (T-1, G-1), or is in the avoided maps list.
      */
     [[nodiscard]] bool isUnsafePortalTarget(const std::string& targetMapName) const {
-        if (targetMapName.empty()) {
-            return true;  // Unknown destination = unsafe
-        }
-        if (isAvoidedMap(targetMapName)) {
-            return true;
-        }
-        // PvP / contested maps are always unsafe for escape
-        if (targetMapName == "T-1" || targetMapName == "G-1") {
-            return true;
-        }
-        // Check faction-based safety: only jump to own faction's maps
-        const int32_t heroFraction = engine_->hero().fraction;
-        if (heroFraction <= 0) {
-            return false;  // Unknown faction, can't filter
-        }
-        // Faction prefixes: 1=R, 2=E, 3=U
-        char targetPrefix = targetMapName.empty() ? '\0' : targetMapName[0];
-        char ownPrefix = '\0';
-        switch (heroFraction) {
-            case 1: ownPrefix = 'R'; break;
-            case 2: ownPrefix = 'E'; break;
-            case 3: ownPrefix = 'U'; break;
-            default: return false;
-        }
-        // Enemy faction home maps (X-1 to X-4) are unsafe
-        if (targetPrefix != ownPrefix && (targetPrefix == 'R' || targetPrefix == 'E' || targetPrefix == 'U')) {
-            if (targetMapName.size() >= 3 && targetMapName[1] == '-') {
-                char mapNum = targetMapName[2];
-                if (mapNum >= '1' && mapNum <= '4') {
-                    return true;
-                }
-            }
-        }
-        return false;
+        return isNeverJumpPortalTarget(targetMapName) || isEnemyFactionPortalTarget(targetMapName);
     }

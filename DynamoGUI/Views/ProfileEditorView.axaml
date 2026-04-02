@@ -42,13 +42,15 @@
       <Border Classes="card">
         <StackPanel Spacing="6">
           <TextBlock Text="CONFIG SLOTS" FontSize="10" Foreground="{StaticResource TextMutedBrush}" FontWeight="Bold" />
-          <Grid ColumnDefinitions="Auto,100,Auto,100,Auto,100" ColumnSpacing="8">
-            <TextBlock Text="Roaming" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+          <Grid ColumnDefinitions="Auto,100,Auto,100" RowDefinitions="Auto,Auto" ColumnSpacing="8" RowSpacing="8">
+            <TextBlock Text="Roam" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
             <ComboBox Grid.Column="1" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedRoamingSlot}" />
-            <TextBlock Grid.Column="2" Text="Flying" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <TextBlock Grid.Column="2" Text="Fly" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
             <ComboBox Grid.Column="3" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedFlyingSlot}" />
-            <TextBlock Grid.Column="4" Text="Shooting" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
-            <ComboBox Grid.Column="5" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedShootingSlot}" />
+            <TextBlock Grid.Row="1" Text="Kill" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <ComboBox Grid.Row="1" Grid.Column="1" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedShootingSlot}" />
+            <TextBlock Grid.Row="1" Grid.Column="2" Text="Collect" FontSize="12" Foreground="{StaticResource TextSecondaryBrush}" VerticalAlignment="Center" />
+            <ComboBox Grid.Row="1" Grid.Column="3" Classes="input" ItemsSource="{Binding SlotOptions}" SelectedItem="{Binding SelectedCollectSlot}" />
           </Grid>
         </StackPanel>
       </Border>

@@ -57,7 +57,8 @@
             return config_.priority - 10;
         }
 
-        if (hpPercent < config_.repairHpPercent) {
+        if (hpPercent < config_.repairHpPercent &&
+            !shouldDelayRepairForNpcKill(snap, hpPercent, assessment)) {
             return config_.priority - 10;
         }
 

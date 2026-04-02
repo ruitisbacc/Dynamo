@@ -50,6 +50,7 @@ public sealed class ConfigSlotSelection
     public int Roaming { get; set; } = 1;
     public int Flying { get; set; } = 2;
     public int Shooting { get; set; } = 1;
+    public int Collect { get; set; } = 2;
 }
 
 public sealed class SafetyPolicy

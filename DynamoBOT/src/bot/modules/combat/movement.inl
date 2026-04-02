@@ -133,14 +133,14 @@
             const double candidateToBox = candidate.distanceTo(*context.collectApproachPoint);
             const double heroToBox = context.heroPos.distanceTo(*context.collectApproachPoint);
 
-            if (candidateToBox <= 240.0) {
-                score += 1800.0;
-            } else if (candidateToBox <= 620.0) {
-                score += (620.0 - candidateToBox) * 3.4;
+            if (candidateToBox <= 280.0) {
+                score += 2100.0;
+            } else if (candidateToBox <= 700.0) {
+                score += (700.0 - candidateToBox) * 4.0;
             }
 
-            if (candidateToBox + 60.0 < heroToBox) {
-                score += 260.0;
+            if (candidateToBox + 80.0 < heroToBox) {
+                score += 320.0;
             }
         }
 

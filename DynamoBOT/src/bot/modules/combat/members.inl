@@ -39,6 +39,10 @@
     std::unordered_map<int32_t, CombatTargetLockout> targetLockouts_;
     int64_t lastCombatCollectTime_{0};
     static constexpr double COMBAT_COLLECT_RANGE = 200.0;
+    static constexpr double APPROACH_COLLECT_CORRIDOR_MIN = 90.0;
+    static constexpr double APPROACH_COLLECT_CORRIDOR_MAX = 220.0;
+    static constexpr double APPROACH_COLLECT_MAX_DETOUR = 190.0;
+    static constexpr double COMBAT_COLLECT_INWARD_BUFFER = 60.0;
 
     std::vector<std::regex> targetPatterns_;
     static constexpr int64_t CONFIG_SWITCH_COOLDOWN_MS = 1000;

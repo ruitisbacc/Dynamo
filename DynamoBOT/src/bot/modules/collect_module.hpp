@@ -141,7 +141,6 @@ private:
     std::unordered_map<int32_t, BoxFailureState> failedBoxes_;
 
     static constexpr int64_t CONFIG_SWITCH_COOLDOWN_MS = 1000;
-    static constexpr int64_t COLLECT_TIMEOUT_MS = 3000;
     static constexpr int64_t APPROACH_STALL_TIMEOUT_MS = 4000;
     static constexpr int64_t APPROACH_MAX_AGE_MS = 15000;
     static constexpr int64_t FAILED_BOX_IGNORE_MS = 120000;
@@ -417,7 +416,7 @@ private:
         if (now - lastCollectTime_ >= config_.collectCooldownMs) {
             lastCollectTime_ = now;
             collectStartTime_ = now;
-            currentCollectWaitUntilMs_ = now + collectPostAttemptWaitMs(*box);
+            currentCollectWaitUntilMs_ = now + collectRetryWaitMs(*box);
 
             engine_->collect(currentBoxId_);
             state_ = CollectState::Waiting;
@@ -440,22 +439,20 @@ private:
             return;
         }
 
-        if (collectStartTime_ > 0 && now - collectStartTime_ > COLLECT_TIMEOUT_MS) {
-            const int32_t boxId = currentBoxId_;
-            markBoxFailure(boxId, now, "Collect timeout");
+        const int32_t boxId = currentBoxId_;
+        markBoxFailure(boxId, now, "Collect failed");
 
-            if (shouldIgnoreAfterFailure(boxId, now)) {
-                resetCurrentTarget(true);
-                state_ = CollectState::Searching;
-                return;
-            }
-
-            lastCollectTime_ = now;
-            collectStartTime_ = now;
-            currentCollectWaitUntilMs_ = now + collectPostAttemptWaitMs(*box);
-            engine_->collect(boxId);
-            std::cout << "[Collect] Retrying box " << boxId << " immediately\n";
+        if (shouldIgnoreAfterFailure(boxId, now)) {
+            resetCurrentTarget(true);
+            state_ = CollectState::Searching;
+            return;
         }
+
+        lastCollectTime_ = now;
+        collectStartTime_ = now;
+        currentCollectWaitUntilMs_ = now + collectRetryWaitMs(*box);
+        engine_->collect(boxId);
+        std::cout << "[Collect] Retrying box " << boxId << " immediately\n";
     }
 };
 

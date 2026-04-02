@@ -290,6 +290,7 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
     private IntOption? _selectedRoamingSlot = ProfileCatalog.SlotOptions[0];
     private IntOption? _selectedFlyingSlot = ProfileCatalog.SlotOptions[1];
     private IntOption? _selectedShootingSlot = ProfileCatalog.SlotOptions[0];
+    private IntOption? _selectedCollectSlot = ProfileCatalog.SlotOptions[1];
     private bool _kill = true;
     private bool _collect = true;
     private bool _collectDuringCombat = true;
@@ -458,6 +459,12 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
     {
         get => _selectedShootingSlot;
         set => SetProperty(ref _selectedShootingSlot, value);
+    }
+
+    public IntOption? SelectedCollectSlot
+    {
+        get => _selectedCollectSlot;
+        set => SetProperty(ref _selectedCollectSlot, value);
     }
 
     public bool Kill
@@ -774,6 +781,7 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
         SelectedRoamingSlot = ProfileCatalog.FindSlotOption(normalized.ConfigSlots.Roaming);
         SelectedFlyingSlot = ProfileCatalog.FindSlotOption(normalized.ConfigSlots.Flying);
         SelectedShootingSlot = ProfileCatalog.FindSlotOption(normalized.ConfigSlots.Shooting);
+        SelectedCollectSlot = ProfileCatalog.FindSlotOption(normalized.ConfigSlots.Collect);
         Kill = normalized.Kill;
         Collect = normalized.Collect;
         CollectDuringCombat = normalized.CollectDuringCombat;
@@ -898,6 +906,7 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
                 Roaming = SelectedRoamingSlot?.Value ?? 1,
                 Flying = SelectedFlyingSlot?.Value ?? 2,
                 Shooting = SelectedShootingSlot?.Value ?? 1,
+                Collect = SelectedCollectSlot?.Value ?? 2,
             },
             Kill = Kill,
             Collect = Collect,
@@ -965,9 +974,13 @@ public sealed class ProfileEditorViewModel : ViewModelBase, IDisposable
         if (string.IsNullOrWhiteSpace(p.Id)) e.Add("Profile ID is required.");
         if (string.IsNullOrWhiteSpace(p.WorkingMap)) e.Add("Working map is required.");
         if (!p.Kill && !p.Collect) e.Add("Enable at least kill or collect.");
-        if (p.ConfigSlots.Roaming is < 1 or > 2 || p.ConfigSlots.Flying is < 1 or > 2 || p.ConfigSlots.Shooting is < 1 or > 2) e.Add("Slots must be 1 or 2.");
+        if (p.ConfigSlots.Roaming is < 1 or > 2 ||
+            p.ConfigSlots.Flying is < 1 or > 2 ||
+            p.ConfigSlots.Shooting is < 1 or > 2 ||
+            p.ConfigSlots.Collect is < 1 or > 2) e.Add("Slots must be 1 or 2.");
         if (p.Safety.EmergencyHpPercent is < 1 or > 100) e.Add("Emergency HP: 1–100.");
         if (p.Safety.RepairHpPercent is < 1 or > 100) e.Add("Repair HP: 1–100.");
+        if (p.Safety.EmergencyHpPercent > p.Safety.RepairHpPercent) e.Add("Emergency HP must be ≤ repair HP.");
         if (p.Safety.FullHpPercent < p.Safety.RepairHpPercent || p.Safety.FullHpPercent > 100) e.Add("Full HP must be ≥ repair HP.");
         if (p.AdminDisconnect.CooldownMinutes < 0) e.Add("Admin cooldown ≥ 0.");
         if (p.DeathDisconnect.Enabled && p.DeathDisconnect.DeathThreshold <= 0) e.Add("Death threshold > 0.");

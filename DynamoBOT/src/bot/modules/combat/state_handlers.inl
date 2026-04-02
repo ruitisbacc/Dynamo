@@ -93,6 +93,7 @@
             return;
         }
 
+        bool plannedApproachCollect = false;
         if (now - lastMoveTime_ >= config_.moveCooldownMs) {
             lastMoveTime_ = now;
 
@@ -116,12 +117,29 @@
             );
             adoptOrbitDirection(approachSolution, now);
 
-            moveWithinBounds(snap, approachSolution.point, MoveIntent::Pursuit);
+            const auto approachCollect = findApproachCollectBox(
+                snap,
+                *target,
+                approachSolution.point,
+                approachRange
+            );
+            const Position moveTarget = approachCollect.has_value()
+                ? approachCollect->approachPosition
+                : approachSolution.point;
+            plannedApproachCollect = approachCollect.has_value();
+
+            moveWithinBounds(snap, moveTarget, MoveIntent::Pursuit);
+            if (approachCollect.has_value()) {
+                tryCollectCombatBox(snap, *approachCollect);
+            }
         }
+        const bool lockedTarget = snap.hero.selectedTarget == currentTargetId_;
         publishTelemetry(
             snap,
             target,
-            snap.hero.selectedTarget == currentTargetId_ ? "ClosingForAttack" : "LockingTarget"
+            plannedApproachCollect
+                ? (lockedTarget ? "ClosingForAttack+Collect" : "LockingTarget+Collect")
+                : (lockedTarget ? "ClosingForAttack" : "LockingTarget")
         );
     }
     

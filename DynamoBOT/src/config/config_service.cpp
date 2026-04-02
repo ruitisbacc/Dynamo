@@ -508,11 +508,17 @@ std::vector<std::string> ConfigService::validateProfile(const BotProfile& profil
     if (profile.configSlots.shooting < 1 || profile.configSlots.shooting > 2) {
         errors.emplace_back("shooting config slot must be 1 or 2");
     }
+    if (profile.configSlots.collect < 1 || profile.configSlots.collect > 2) {
+        errors.emplace_back("collect config slot must be 1 or 2");
+    }
     if (profile.safety.emergencyHpPercent < 1 || profile.safety.emergencyHpPercent > 100) {
         errors.emplace_back("emergencyHpPercent must be in range 1-100");
     }
     if (profile.safety.repairHpPercent < 1 || profile.safety.repairHpPercent > 100) {
         errors.emplace_back("repairHpPercent must be in range 1-100");
+    }
+    if (profile.safety.emergencyHpPercent > profile.safety.repairHpPercent) {
+        errors.emplace_back("emergencyHpPercent must be <= repairHpPercent");
     }
     if (profile.safety.fullHpPercent < profile.safety.repairHpPercent ||
         profile.safety.fullHpPercent > 100) {
@@ -597,9 +603,14 @@ void ConfigService::normalizeProfile(BotProfile& profile) {
     profile.configSlots.roaming = clampConfigSlot(profile.configSlots.roaming);
     profile.configSlots.flying = clampConfigSlot(profile.configSlots.flying);
     profile.configSlots.shooting = clampConfigSlot(profile.configSlots.shooting);
+    profile.configSlots.collect = clampConfigSlot(profile.configSlots.collect);
     profile.collectDuringCombat = profile.collectDuringCombat && profile.kill && profile.collect;
     profile.safety.emergencyHpPercent = std::clamp(profile.safety.emergencyHpPercent, 1, 100);
     profile.safety.repairHpPercent = std::clamp(profile.safety.repairHpPercent, 1, 100);
+    profile.safety.emergencyHpPercent = std::min(
+        profile.safety.emergencyHpPercent,
+        profile.safety.repairHpPercent
+    );
     profile.safety.fullHpPercent = std::clamp(
         profile.safety.fullHpPercent,
         profile.safety.repairHpPercent,
@@ -685,7 +696,7 @@ BotConfig ConfigService::resolveRuntimeConfig(const BotProfile& profile) {
     runtime.collect.skipResourceIfCargoFull = true;
     runtime.collect.collectDuringCombat = profile.collectDuringCombat && runtime.mode == BotMode::KillCollect;
     runtime.collect.combatCollectMaxDistance = 800;
-    runtime.collect.configId = profile.configSlots.flying;
+    runtime.collect.configId = profile.configSlots.collect;
     runtime.collect.priority = kDefaultCollectPriority;
     runtime.collect.targetBoxes.clear();
     runtime.collect.targetBoxes.reserve(profile.boxTypes.size());

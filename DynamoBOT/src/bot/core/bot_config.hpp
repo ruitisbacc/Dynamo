@@ -194,7 +194,7 @@ struct SafetyConfig {
     
     // Enemy behavior
     SafetyFleeMode fleeMode{SafetyFleeMode::OnEnemySeen};
-    int32_t enemySeenTimeoutMs{15000};  // Wait time after enemy disappears
+    int32_t enemySeenTimeoutMs{15000};  // Threat tracking freshness window
     
     // Escape settings
     bool preferPortalEscape{true};      // Prefer portals over random flee

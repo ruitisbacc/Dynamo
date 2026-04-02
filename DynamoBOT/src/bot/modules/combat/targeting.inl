@@ -94,16 +94,25 @@
     }
 
     [[nodiscard]] double dynamicCombatCollectDistance(const ShipInfo& target) const {
-        const double maxDistance = std::max(
+        const double configuredMaxDistance = std::max(
             static_cast<double>(collectConfig_.combatCollectMaxDistance),
             0.0
+        );
+        const double maxDistance = std::clamp(
+            configuredMaxDistance + 100.0,
+            0.0,
+            950.0
         );
         if (maxDistance <= 0.0) {
             return 0.0;
         }
 
-        const double minDistance = std::min(250.0, maxDistance);
+        const double minDistance = std::min(320.0, maxDistance);
         return minDistance + (maxDistance - minDistance) * targetDurabilityRatio(target);
+    }
+
+    [[nodiscard]] static double combatCollectInwardLimit(double combatRange) {
+        return combatRange - std::max(COMBAT_COLLECT_INWARD_BUFFER, combatRange * 0.10);
     }
 
     [[nodiscard]] std::optional<CombatCollectSelection>
@@ -146,16 +155,122 @@
                 continue;
             }
 
-            if (heroToTargetDistance > 0.0 && heroToBoxDistance >= heroToTargetDistance + 80.0) {
+            if (heroToTargetDistance > 0.0 && heroToBoxDistance >= heroToTargetDistance + 180.0) {
                 continue;
             }
 
             const double targetToBoxDistance = targetPos.distanceTo(approachPos);
+            if (targetToBoxDistance < combatCollectInwardLimit(combatRange)) {
+                continue;
+            }
+
             const double rangePenalty = std::abs(targetToBoxDistance - combatRange);
             const double score =
                 priority * 1400.0 -
-                heroToBoxDistance * 1.15 -
-                rangePenalty * 0.85;
+                heroToBoxDistance * 1.00 -
+                rangePenalty * 0.70 +
+                (targetToBoxDistance + 20.0 >= heroToTargetDistance ? 140.0 : 0.0);
+
+            if (score > bestScore) {
+                bestScore = score;
+                bestBox = &box;
+            }
+        }
+
+        if (!bestBox) {
+            return std::nullopt;
+        }
+
+        CombatCollectSelection selection;
+        selection.box = bestBox;
+        selection.approachPosition = collectApproachPosition(*bestBox);
+        return selection;
+    }
+
+    [[nodiscard]] std::optional<CombatCollectSelection>
+    findApproachCollectBox(const GameSnapshot& snap,
+                           const ShipInfo& target,
+                           const Position& plannedMoveTarget,
+                           double /*combatRange*/) const {
+        if (!isCombatCollectEnabled(snap)) {
+            return std::nullopt;
+        }
+
+        const int32_t highestPriority = highestCombatCollectPriority();
+        if (highestPriority <= 0) {
+            return std::nullopt;
+        }
+
+        const Position heroPos(snap.hero.x, snap.hero.y);
+        const Position targetPos(target.x, target.y);
+        const double heroToTargetDistance = heroPos.distanceTo(targetPos);
+        const double directPathDistance = heroPos.distanceTo(plannedMoveTarget);
+        if (directPathDistance <= 40.0) {
+            return std::nullopt;
+        }
+
+        const double dynamicMaxDistance = dynamicCombatCollectDistance(target);
+        if (dynamicMaxDistance <= 0.0) {
+            return std::nullopt;
+        }
+
+        const double corridorWidth = std::clamp(
+            directPathDistance * 0.16,
+            APPROACH_COLLECT_CORRIDOR_MIN,
+            APPROACH_COLLECT_CORRIDOR_MAX
+        );
+        const double plannedTargetDistance = plannedMoveTarget.distanceTo(targetPos);
+
+        const BoxInfo* bestBox = nullptr;
+        double bestScore = -std::numeric_limits<double>::infinity();
+
+        for (const auto& box : snap.entities.boxes) {
+            if (!box.existsOnMap || !shouldCollectCombatBox(box, snap)) {
+                continue;
+            }
+
+            const int32_t priority = combatCollectBoxPriority(box.type);
+            if (priority < highestPriority) {
+                continue;
+            }
+
+            const Position approachPos = collectApproachPosition(box);
+            const double heroToBoxDistance = heroPos.distanceTo(approachPos);
+            if (heroToBoxDistance > dynamicMaxDistance + 100.0) {
+                continue;
+            }
+
+            if (heroToTargetDistance > 0.0 &&
+                heroToBoxDistance >= heroToTargetDistance + 140.0) {
+                continue;
+            }
+
+            const double deviation =
+                distanceToSegment(approachPos, heroPos, plannedMoveTarget);
+            if (deviation > corridorWidth) {
+                continue;
+            }
+
+            const double detour =
+                heroToBoxDistance +
+                approachPos.distanceTo(plannedMoveTarget) -
+                directPathDistance;
+            if (detour > APPROACH_COLLECT_MAX_DETOUR) {
+                continue;
+            }
+
+            const double targetToBoxDistance = targetPos.distanceTo(approachPos);
+            if (targetToBoxDistance + 50.0 < plannedTargetDistance) {
+                continue;
+            }
+
+            const double score =
+                priority * 1700.0 -
+                heroToBoxDistance * 0.70 -
+                deviation * 3.60 -
+                detour * 3.00 -
+                std::abs(targetToBoxDistance - plannedTargetDistance) * 0.90 +
+                (targetToBoxDistance + 15.0 >= plannedTargetDistance ? 120.0 : 0.0);
 
             if (score > bestScore) {
                 bestScore = score;

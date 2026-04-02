@@ -404,6 +404,7 @@ private:
     uint64_t appliedConfigVersion_{0};
     bool reconnectPending_{false};
     int64_t reconnectAtMs_{0};
+    int64_t reconnectRetryStartedAtMs_{0};
     std::string reconnectReason_;
     ResourceAutomationState resourceAutomationState_{ResourceAutomationState::Idle};
     ResourceAutomationPlan lastResourcePlan_;
@@ -431,6 +432,11 @@ private:
     static constexpr int64_t TRADE_STATION_ARRIVAL_RANGE = 260;
     static constexpr int64_t RESOURCE_FLOW_GLOBAL_TIMEOUT_MS = 5 * 60 * 1000;
     static constexpr int64_t RESOURCE_IDLE_BACKOFF_MS = 30000;
+    static constexpr int64_t RECONNECT_RETRY_FAST_MS = 5000;
+    static constexpr int64_t RECONNECT_RETRY_MEDIUM_MS = 15000;
+    static constexpr int64_t RECONNECT_RETRY_SLOW_MS = 60000;
+    static constexpr int64_t RECONNECT_RETRY_FAST_WINDOW_MS = 60 * 1000;
+    static constexpr int64_t RECONNECT_RETRY_MEDIUM_WINDOW_MS = 5 * 60 * 1000;
     static constexpr std::array<std::string_view, 6> TRADE_MAP_NAMES = {
         "R-1", "E-1", "U-1", "R-7", "E-7", "U-7"
     };
@@ -580,7 +586,7 @@ private:
                 appliedConfigVersion_ != 0) {
                 scheduleReconnectAttempt(
                     currentTimeMs(),
-                    3000,
+                    RECONNECT_RETRY_FAST_MS,
                     "UnexpectedDisconnect"
                 );
             }
@@ -687,6 +693,24 @@ private:
         std::cout << "[ResourcesFlow] " << message << "\n";
     }
 
+    [[nodiscard]] bool isResourceFlowExclusive() const {
+        if (resourceFlowTriggeredByCargo_) {
+            return true;
+        }
+
+        switch (resourceAutomationState_) {
+            case ResourceAutomationState::TravelingToTradeMap:
+            case ResourceAutomationState::MovingToTradeStation:
+            case ResourceAutomationState::WaitingForTradeInfo:
+            case ResourceAutomationState::ReturningToWorkMap:
+                return true;
+            case ResourceAutomationState::Idle:
+            case ResourceAutomationState::WaitingForResourcesInfo:
+            default:
+                return false;
+        }
+    }
+
     void resetResourceAutomationState() {
         resourceAutomationState_ = ResourceAutomationState::Idle;
         lastResourcePlan_ = ResourceAutomationPlan{};
@@ -756,6 +780,16 @@ private:
         }
 
         resetResourceAutomationState();
+    }
+
+    void abortResourceAutomationForLifecycle(const GameSnapshot& snap,
+                                             const BotConfig& runtime,
+                                             std::string_view reason) {
+        if (resourceAutomationState_ == ResourceAutomationState::Idle) {
+            return;
+        }
+
+        finishResourceAutomation(snap, runtime, reason);
     }
 
     bool beginReturnToWorkingMapIfNeeded(const GameSnapshot& snap,
@@ -943,12 +977,13 @@ private:
 
     bool executeRefineStep(const GameSnapshot& snap,
                            const ResourceRefinePlanStep& step,
-                           std::string_view kind) {
+                           std::string_view kind,
+                           bool exclusiveControl) {
         const auto* stack = snap.resources.findResource(static_cast<int32_t>(step.target));
         if (!stack) {
             logResourceFlow("Refine skipped because target stack is missing in resource snapshot.");
             enterResourcesInfoWait(snap, "Retry resource refresh after missing refine target.");
-            return true;
+            return exclusiveControl;
         }
 
         const int32_t maxChunk = stack->maxRefineAmount > 0 ? stack->maxRefineAmount : step.amount;
@@ -957,27 +992,32 @@ private:
             logResourceFlow(std::string(kind) + " refine for " + resourceTypeName(step.target) +
                             " is currently unavailable; waiting for fresh panel data.");
             enterResourcesInfoWait(snap, "Waiting for refine availability.");
-            return true;
+            return exclusiveControl;
         }
 
-        suspendSchedulerForControllerWork();
-        engine_->clearPendingActions();
+        if (exclusiveControl) {
+            suspendSchedulerForControllerWork();
+            engine_->clearPendingActions();
+        }
         engine_->refineResource(static_cast<int32_t>(step.target), amount);
         logResourceFlow(std::string("Sent ") + std::string(kind) + " refine: " +
                         std::to_string(amount) + " " + resourceTypeName(step.target));
         enterResourcesInfoWait(snap, "Waiting for resources refresh after refine.", RESOURCE_ACTION_COOLDOWN_MS);
-        return true;
+        return exclusiveControl;
     }
 
     bool executeEnrichStep(const GameSnapshot& snap,
-                           const ResourceEnrichPlanStep& step) {
+                           const ResourceEnrichPlanStep& step,
+                           bool exclusiveControl) {
         if (step.amount <= 0) {
             enterResourcesInfoWait(snap, "Skipping empty enrich step.");
-            return true;
+            return exclusiveControl;
         }
 
-        suspendSchedulerForControllerWork();
-        engine_->clearPendingActions();
+        if (exclusiveControl) {
+            suspendSchedulerForControllerWork();
+            engine_->clearPendingActions();
+        }
         engine_->enrichModule(static_cast<int32_t>(step.module),
                               static_cast<int32_t>(step.material),
                               step.amount);
@@ -986,7 +1026,7 @@ private:
                         " <- " + resourceTypeName(step.material) +
                         " amount " + std::to_string(step.amount));
         enterResourcesInfoWait(snap, "Waiting for resources refresh after enrich.", RESOURCE_ACTION_COOLDOWN_MS);
-        return true;
+        return exclusiveControl;
     }
 
     bool executeSellStep(const GameSnapshot& snap,
@@ -1018,6 +1058,17 @@ private:
         const bool periodicRefineReady =
             lastRefineCompletedAtMs_ == 0 ||
             (snap.timestampMs - lastRefineCompletedAtMs_ >= refineIntervalMs);
+
+        if (cargoFull &&
+            !resourceFlowTriggeredByCargo_ &&
+            resourceAutomationState_ != ResourceAutomationState::Idle &&
+            resourceAutomationState_ != ResourceAutomationState::TravelingToTradeMap &&
+            resourceAutomationState_ != ResourceAutomationState::MovingToTradeStation &&
+            resourceAutomationState_ != ResourceAutomationState::WaitingForTradeInfo &&
+            resourceAutomationState_ != ResourceAutomationState::ReturningToWorkMap) {
+            resourceFlowTriggeredByCargo_ = true;
+            logResourceFlow("Cargo reached 100% during periodic cycle; switching to exclusive mode.");
+        }
 
         if (!cargoFull &&
             resourceAutomationState_ != ResourceAutomationState::ReturningToWorkMap) {
@@ -1071,18 +1122,23 @@ private:
                         return executeRefineStep(
                             snap,
                             lastResourcePlan_.targetedRefineSteps.front(),
-                            "targeted");
+                            "targeted",
+                            isResourceFlowExclusive());
                     }
 
                     if (!lastResourcePlan_.compressionRefineSteps.empty()) {
                         return executeRefineStep(
                             snap,
                             lastResourcePlan_.compressionRefineSteps.front(),
-                            "compression");
+                            "compression",
+                            isResourceFlowExclusive());
                     }
 
                     if (!lastResourcePlan_.enrichSteps.empty()) {
-                        return executeEnrichStep(snap, lastResourcePlan_.enrichSteps.front());
+                        return executeEnrichStep(
+                            snap,
+                            lastResourcePlan_.enrichSteps.front(),
+                            isResourceFlowExclusive());
                     }
 
                     if (resourceFlowTriggeredByCargo_ && lastResourcePlan_.needsSellTrip) {
@@ -1115,17 +1171,19 @@ private:
                 }
 
                 if (snap.timestampMs < nextResourceActionAtMs_) {
-                    return true;
+                    return isResourceFlowExclusive();
                 }
 
                 if (lastResourceInfoRequestAtMs_ == 0 ||
                     snap.timestampMs - lastResourceInfoRequestAtMs_ >= RESOURCE_INFO_RETRY_MS) {
-                    suspendSchedulerForControllerWork();
+                    if (isResourceFlowExclusive()) {
+                        suspendSchedulerForControllerWork();
+                    }
                     engine_->requestResourcesInfo();
                     lastResourceInfoRequestAtMs_ = snap.timestampMs;
                     logResourceFlow("Requested fresh resources info.");
                 }
-                return true;
+                return isResourceFlowExclusive();
             }
 
             case ResourceAutomationState::TravelingToTradeMap: {
@@ -1259,14 +1317,34 @@ private:
         const bool deadNow = engine_->isDead();
         const int64_t now = snap.timestampMs;
         bool justRevived = false;
+        const bool immediateDeathPending = immediateDeathRevivePending_.exchange(false);
+
+        if (!deadNow && wasDead_) {
+            abortResourceAutomationForLifecycle(
+                snap,
+                runtime,
+                "Resetting resource workflow after revive/alive transition."
+            );
+        } else if (deadNow && (!wasDead_ || immediateDeathPending)) {
+            abortResourceAutomationForLifecycle(
+                snap,
+                runtime,
+                "Resetting resource workflow because the hero died."
+            );
+        }
 
         if (!deadNow && reviveEventPending_.exchange(false)) {
+            abortResourceAutomationForLifecycle(
+                snap,
+                runtime,
+                "Resetting resource workflow after revive confirmation."
+            );
             confirmSafetyAfterRevive(now);
             justRevived = true;
         }
 
         // Process deferred immediate-death signal from engine callback thread
-        if (immediateDeathRevivePending_.exchange(false) && deadNow && runtime.revive.enabled) {
+        if (immediateDeathPending && deadNow && runtime.revive.enabled) {
             engine_->clearPendingActions();
             if (movement_) {
                 movement_->reset();
@@ -1385,7 +1463,18 @@ private:
                                   std::string reason) {
         reconnectPending_ = true;
         reconnectReason_ = std::move(reason);
+        reconnectRetryStartedAtMs_ = 0;
         reconnectAtMs_ = nowMs + std::max<int64_t>(0, delayMs);
+    }
+
+    [[nodiscard]] static int64_t reconnectRetryDelayForElapsed(int64_t elapsedMs) {
+        if (elapsedMs < RECONNECT_RETRY_FAST_WINDOW_MS) {
+            return RECONNECT_RETRY_FAST_MS;
+        }
+        if (elapsedMs < RECONNECT_RETRY_MEDIUM_WINDOW_MS) {
+            return RECONNECT_RETRY_MEDIUM_MS;
+        }
+        return RECONNECT_RETRY_SLOW_MS;
     }
 
     void processReconnectCooldown(int64_t nowMs) {
@@ -1401,6 +1490,7 @@ private:
 
         if (engine_->isConnected()) {
             reconnectPending_ = false;
+            reconnectRetryStartedAtMs_ = 0;
             reconnectReason_.clear();
             refreshModulesFromConfigIfNeeded(true);
             return;
@@ -1412,13 +1502,20 @@ private:
 
         if (engine_->connect()) {
             reconnectPending_ = false;
+            reconnectRetryStartedAtMs_ = 0;
             reconnectReason_.clear();
             appliedConfigVersion_ = 0;
             std::cout << "[BotController] Reconnect started\n";
             return;
         }
 
-        reconnectAtMs_ = nowMs + 5000;
+        if (reconnectRetryStartedAtMs_ <= 0) {
+            reconnectRetryStartedAtMs_ = nowMs;
+        }
+
+        const int64_t retryElapsedMs = std::max<int64_t>(0, nowMs - reconnectRetryStartedAtMs_);
+        const int64_t retryDelayMs = reconnectRetryDelayForElapsed(retryElapsedMs);
+        reconnectAtMs_ = nowMs + retryDelayMs;
     }
 };
 
