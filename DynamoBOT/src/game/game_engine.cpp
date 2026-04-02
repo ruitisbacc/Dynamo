@@ -1420,8 +1420,9 @@ namespace dynamo
                 msg.deserialize(buffer);
                 if (config_.logPackets)
                 {
-                    std::cout << std::format("[Message] id={}: {}\n", msg.msgId, msg.msg);
-                    appendEngineLog(std::format("[Message] id={}: {}", msg.msgId, msg.msg));
+                    const std::string messageText = msg.hasMsg ? msg.msg : "<null>";
+                    std::cout << std::format("[Message] id={}: {}\n", msg.msgId, messageText);
+                    appendEngineLog(std::format("[Message] id={}: {}", msg.msgId, messageText));
                 }
                 break;
             }

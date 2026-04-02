@@ -413,6 +413,14 @@
             movement_->release(name());
         }
 
+        // During revive grace period, do NOT issue any movement — the hero
+        // snapshot may still contain the pre-death position and sending a
+        // moveTo would fly the ship back to the old flee target.
+        if (reviveGraceUntilMs_ > 0 && now < reviveGraceUntilMs_) {
+            publishTelemetry(snap, summary, "ReviveGrace");
+            return;
+        }
+
         const Position holdPos = repairAnchor_.has_value()
             ? repairAnchor_->position
             : Position(snap.hero.x, snap.hero.y);

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace DynamoGUI.Services;
@@ -10,15 +11,23 @@ namespace DynamoGUI.Services;
 public sealed class BackendService : IDisposable
 {
     public const string BackendExecutableName = "DynamoAPI.exe";
+    private const int MaxBufferedCrashLines = 200;
 
     private Process? _process;
     private bool _disposed;
+    private bool _stopRequested;
+    private string? _lastExecutablePath;
+    private IReadOnlyList<string> _lastArguments = Array.Empty<string>();
+    private readonly object _crashLogLock = new();
+    private readonly Queue<string> _recentProcessLines = new();
 
     public event Action<string>? OnOutput;
     public event Action<string>? OnError;
     public event Action<int>? OnExited;
 
     public bool IsRunning => _process is { HasExited: false };
+    public bool CanRestartLastProcess => !string.IsNullOrWhiteSpace(_lastExecutablePath);
+    public static string CrashLogPath => Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "crash_log.txt");
 
     public static string CreateSessionPipeName() => $"DYNAMO_IPC_{Guid.NewGuid():N}";
 
@@ -94,6 +103,7 @@ public sealed class BackendService : IDisposable
 
         try
         {
+            var argumentList = (arguments ?? Enumerable.Empty<string>()).ToArray();
             var startInfo = new ProcessStartInfo
             {
                 FileName = executablePath,
@@ -104,19 +114,54 @@ public sealed class BackendService : IDisposable
                 WorkingDirectory = ResolveWorkingDirectory(executablePath),
             };
 
-            foreach (var argument in arguments ?? Enumerable.Empty<string>())
+            foreach (var argument in argumentList)
             {
                 startInfo.ArgumentList.Add(argument);
             }
 
-            _process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
-            _process.OutputDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) OnOutput?.Invoke(e.Data); };
-            _process.ErrorDataReceived += (_, e) => { if (!string.IsNullOrWhiteSpace(e.Data)) OnError?.Invoke(e.Data); };
-            _process.Exited += (_, _) => OnExited?.Invoke(_process?.ExitCode ?? -1);
+            _stopRequested = false;
+            _lastExecutablePath = executablePath;
+            _lastArguments = argumentList;
+            lock (_crashLogLock)
+            {
+                _recentProcessLines.Clear();
+            }
 
-            _process.Start();
-            _process.BeginOutputReadLine();
-            _process.BeginErrorReadLine();
+            var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };
+            process.OutputDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(e.Data))
+                {
+                    return;
+                }
+
+                BufferCrashLine("OUT", e.Data);
+                OnOutput?.Invoke(e.Data);
+            };
+            process.ErrorDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrWhiteSpace(e.Data))
+                {
+                    return;
+                }
+
+                BufferCrashLine("ERR", e.Data);
+                OnError?.Invoke(e.Data);
+            };
+            process.Exited += (_, _) =>
+            {
+                var exitCode = process.ExitCode;
+                if (!_stopRequested)
+                {
+                    WriteCrashLog(process, exitCode);
+                }
+                OnExited?.Invoke(exitCode);
+            };
+
+            _process = process;
+            process.Start();
+            process.BeginOutputReadLine();
+            process.BeginErrorReadLine();
 
             await Task.Delay(400);
             if (_process.HasExited)
@@ -129,9 +174,21 @@ public sealed class BackendService : IDisposable
         }
         catch (Exception ex)
         {
+            WriteCrashLogMessage($"Failed to start backend: {ex}");
             OnError?.Invoke($"Failed to start backend: {ex.Message}");
             return false;
         }
+    }
+
+    public Task<bool> RestartLastAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_lastExecutablePath))
+        {
+            OnError?.Invoke("No previous backend launch configuration is available.");
+            return Task.FromResult(false);
+        }
+
+        return StartAsync(_lastExecutablePath, _lastArguments);
     }
 
     public void Stop()
@@ -143,6 +200,7 @@ public sealed class BackendService : IDisposable
 
         try
         {
+            _stopRequested = true;
             _process.Kill(entireProcessTree: true);
             _process.WaitForExit(3000);
         }
@@ -153,6 +211,61 @@ public sealed class BackendService : IDisposable
 
         _process.Dispose();
         _process = null;
+    }
+
+    private void BufferCrashLine(string source, string message)
+    {
+        var line = $"{DateTime.Now:yyyy-MM-dd HH:mm:ss.fff} [{source}] {message}";
+        lock (_crashLogLock)
+        {
+            _recentProcessLines.Enqueue(line);
+            while (_recentProcessLines.Count > MaxBufferedCrashLines)
+            {
+                _recentProcessLines.Dequeue();
+            }
+        }
+    }
+
+    private void WriteCrashLog(Process process, int exitCode)
+    {
+        var builder = new StringBuilder();
+        builder.AppendLine(new string('=', 80));
+        builder.AppendLine($"Timestamp: {DateTime.Now:yyyy-MM-dd HH:mm:ss.fff}");
+        builder.AppendLine($"ExitCode: {exitCode}");
+        builder.AppendLine($"Executable: {process.StartInfo.FileName}");
+        builder.AppendLine($"WorkingDirectory: {process.StartInfo.WorkingDirectory}");
+        builder.AppendLine($"Arguments: {string.Join(' ', process.StartInfo.ArgumentList)}");
+        builder.AppendLine("Recent backend output:");
+
+        lock (_crashLogLock)
+        {
+            if (_recentProcessLines.Count == 0)
+            {
+                builder.AppendLine("(no buffered backend output)");
+            }
+            else
+            {
+                foreach (var line in _recentProcessLines)
+                {
+                    builder.AppendLine(line);
+                }
+            }
+        }
+
+        builder.AppendLine();
+        WriteCrashLogMessage(builder.ToString());
+    }
+
+    private static void WriteCrashLogMessage(string message)
+    {
+        try
+        {
+            File.AppendAllText(CrashLogPath, message + Environment.NewLine);
+        }
+        catch
+        {
+            // Keep crash logging best-effort.
+        }
     }
 
     public void Dispose()

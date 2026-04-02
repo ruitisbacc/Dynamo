@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace DynamoGUI.ViewModels;
@@ -28,7 +29,17 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     private readonly IpcClient _ipc;
     private readonly Dictionary<string, StatsEntryViewModel> _statsRows = new(StringComparer.Ordinal);
     private readonly Dictionary<string, ResourceAmountViewModel> _resourceRows = new(StringComparer.Ordinal);
+    private readonly InventoryStatsSnapshot _carriedSessionStats = new();
     private bool _disposed;
+    private bool _manualShutdownRequested;
+    private bool _recoveryCheckpointCaptured;
+    private int _recoveryInProgress;
+    private long _carriedRuntimeMs;
+    private int _carriedDeathCount;
+    private bool _resumeBotAfterRecovery;
+    private bool _resumePausedBotAfterRecovery;
+    private string _profileToRestoreAfterRecovery = "default";
+    private BackendStatusSnapshot? _lastStatusSnapshot;
 
     public ProfileEditorViewModel ProfileEditor { get; }
 
@@ -408,6 +419,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     public async Task DisconnectAsync()
     {
+        _manualShutdownRequested = true;
         try
         {
             if (IsConnected)
@@ -446,13 +458,31 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
 
     private void HandleBackendExit(int exitCode)
     {
+        CaptureRecoveryCheckpoint();
+        var shouldRecover =
+            !_manualShutdownRequested &&
+            !_disposed &&
+            _session.LastConnectRequest is not null &&
+            _backend.CanRestartLastProcess;
+
         Dispatcher.UIThread.Post(() =>
         {
             BackendRunning = false;
             IsConnected = false;
             BotRunning = false;
             BotPaused = false;
+            if (shouldRecover)
+            {
+                ConnectionState = "Recovering";
+                EngineState = "Recovering";
+                CurrentTask = "Backend crashed. Recovering session...";
+            }
         });
+
+        if (shouldRecover)
+        {
+            _ = RecoverBackendAsync(exitCode);
+        }
     }
 
     private void HandleIpcConnected()
@@ -482,6 +512,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             // ── Batch map-critical fields: set backing fields directly, fire once ──
             // This prevents cascading PropertyChanged → binding → render invalidation
             // storms when the map control reads these during its composition frame.
+            _lastStatusSnapshot = snapshot;
+            _recoveryCheckpointCaptured = false;
             _heroX = snapshot.HeroX;
             _heroY = snapshot.HeroY;
             _heroTargetX = snapshot.HeroTargetX;
@@ -539,8 +571,8 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             HeroName = snapshot.HeroName;
             Honor = snapshot.Honor;
             Experience = snapshot.Experience;
-            DeathCount = snapshot.DeathCount;
-            BotRuntimeSeconds = Math.Max(0, snapshot.Stats.RuntimeMs / 1000);
+            DeathCount = _carriedDeathCount + snapshot.DeathCount;
+            BotRuntimeSeconds = Math.Max(0, (_carriedRuntimeMs + snapshot.Stats.RuntimeMs) / 1000);
             CombatState = snapshot.CombatState;
             CombatDecision = snapshot.CombatDecision;
             CombatMovement = snapshot.CombatMovement;
@@ -550,7 +582,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
             RoamingDecision = snapshot.RoamingDecision;
             BotRunning = snapshot.BotRunning;
             BotPaused = snapshot.BotPaused;
-            ApplyStatsSnapshot(snapshot.Stats);
+            ApplyStatsSnapshot(MergeStatsSnapshot(snapshot.Stats));
             ApplyCurrentResources(snapshot.CurrentResources);
 
             OnPropertyChanged(nameof(BackendBadge));
@@ -681,6 +713,251 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
         UpdateStatsRow("energy_em", session.EnergyEm, total.EnergyEm);
     }
 
+    private void CaptureRecoveryCheckpoint()
+    {
+        if (_recoveryCheckpointCaptured)
+        {
+            return;
+        }
+
+        var snapshot = _lastStatusSnapshot ?? _ipc.LastStatusSnapshot;
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        AddInventoryStats(_carriedSessionStats, snapshot.Stats?.Session);
+        _carriedRuntimeMs += Math.Max(0, snapshot.Stats?.RuntimeMs ?? 0);
+        _carriedDeathCount += Math.Max(0, snapshot.DeathCount);
+        _resumeBotAfterRecovery = snapshot.BotRunning || snapshot.BotPaused;
+        _resumePausedBotAfterRecovery = snapshot.BotPaused;
+        _profileToRestoreAfterRecovery = string.IsNullOrWhiteSpace(snapshot.ActiveProfile)
+            ? (string.IsNullOrWhiteSpace(SelectedProfile) ? "default" : SelectedProfile)
+            : snapshot.ActiveProfile;
+        _recoveryCheckpointCaptured = true;
+        _lastStatusSnapshot = null;
+    }
+
+    private async Task RecoverBackendAsync(int exitCode)
+    {
+        if (Interlocked.Exchange(ref _recoveryInProgress, 1) == 1)
+        {
+            return;
+        }
+
+        try
+        {
+            _ipc.Disconnect();
+
+            var restarted = await _backend.RestartLastAsync();
+            if (!restarted)
+            {
+                await SetRecoveryFailedAsync($"Backend crashed with code {exitCode}. Restart failed.");
+                return;
+            }
+
+            var ipcConnected = await ReconnectIpcAsync(_session.PipeName, 10, 500);
+            if (!ipcConnected)
+            {
+                await SetRecoveryFailedAsync("Backend restarted, but IPC reconnect failed.");
+                return;
+            }
+
+            var request = CloneConnectRequest(_session.LastConnectRequest);
+            if (request is null)
+            {
+                await SetRecoveryFailedAsync("Missing login session data for backend recovery.");
+                return;
+            }
+
+            var connectResult = await _ipc.ConnectGameAsync(request);
+            if (!connectResult.Success)
+            {
+                await SetRecoveryFailedAsync(
+                    string.IsNullOrWhiteSpace(connectResult.Message)
+                        ? "Backend recovery login failed."
+                        : connectResult.Message);
+                return;
+            }
+
+            var inGame = await WaitForEngineStateAsync("InGame", 45000);
+            if (!inGame)
+            {
+                await SetRecoveryFailedAsync("Backend recovery did not reach InGame state in time.");
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(_profileToRestoreAfterRecovery))
+            {
+                await _ipc.LoadProfileAsync(_profileToRestoreAfterRecovery);
+            }
+
+            await _ipc.RequestProfilesAsync();
+            await _ipc.RequestStatusAsync();
+
+            if (_resumeBotAfterRecovery)
+            {
+                await _ipc.StartBotAsync();
+
+                if (_resumePausedBotAfterRecovery)
+                {
+                    await Task.Delay(250);
+                    await _ipc.PauseBotAsync();
+                }
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _recoveryInProgress, 0);
+        }
+    }
+
+    private async Task<bool> ReconnectIpcAsync(string pipeName, int attempts, int delayMs)
+    {
+        for (var attempt = 0; attempt < attempts; attempt++)
+        {
+            if (await _ipc.ConnectAsync(pipeName, Math.Max(2000, delayMs * 4)))
+            {
+                return true;
+            }
+
+            await Task.Delay(delayMs);
+        }
+
+        return false;
+    }
+
+    private async Task<bool> WaitForEngineStateAsync(string expectedState, int timeoutMs)
+    {
+        if (string.Equals(_ipc.LastStatusSnapshot?.EngineState, expectedState, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var waiter = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action<BackendStatusSnapshot>? handler = null;
+        handler = snapshot =>
+        {
+            if (string.Equals(snapshot.EngineState, expectedState, StringComparison.Ordinal))
+            {
+                waiter.TrySetResult(true);
+                return;
+            }
+
+            if (string.Equals(snapshot.EngineState, "Error", StringComparison.Ordinal))
+            {
+                waiter.TrySetResult(false);
+            }
+        };
+
+        _ipc.OnStatusSnapshot += handler;
+        try
+        {
+            var completed = await Task.WhenAny(waiter.Task, Task.Delay(timeoutMs));
+            return completed == waiter.Task && await waiter.Task;
+        }
+        finally
+        {
+            _ipc.OnStatusSnapshot -= handler;
+        }
+    }
+
+    private async Task SetRecoveryFailedAsync(string message)
+    {
+        await Dispatcher.UIThread.InvokeAsync(() =>
+        {
+            BackendRunning = _backend.IsRunning;
+            IsConnected = _ipc.IsConnected;
+            BotRunning = false;
+            BotPaused = false;
+            ConnectionState = "Disconnected";
+            EngineState = "Error";
+            CurrentTask = message;
+        });
+    }
+
+    private SessionStatsSnapshot MergeStatsSnapshot(SessionStatsSnapshot? stats)
+    {
+        stats ??= new SessionStatsSnapshot();
+        return new SessionStatsSnapshot
+        {
+            RuntimeMs = _carriedRuntimeMs + Math.Max(0, stats.RuntimeMs),
+            Session = SumInventoryStats(_carriedSessionStats, stats.Session),
+            Total = stats.Total ?? new InventoryStatsSnapshot(),
+        };
+    }
+
+    private static BackendConnectRequest? CloneConnectRequest(BackendConnectRequest? request)
+    {
+        if (request is null)
+        {
+            return null;
+        }
+
+        return new BackendConnectRequest
+        {
+            Username = request.Username,
+            Password = request.Password,
+            ServerId = request.ServerId,
+            Language = request.Language,
+        };
+    }
+
+    private static InventoryStatsSnapshot SumInventoryStats(
+        InventoryStatsSnapshot? left,
+        InventoryStatsSnapshot? right)
+    {
+        left ??= new InventoryStatsSnapshot();
+        right ??= new InventoryStatsSnapshot();
+
+        return new InventoryStatsSnapshot
+        {
+            Plt = left.Plt + right.Plt,
+            Btc = left.Btc + right.Btc,
+            Experience = left.Experience + right.Experience,
+            Honor = left.Honor + right.Honor,
+            LaserRlx1 = left.LaserRlx1 + right.LaserRlx1,
+            LaserGlx2 = left.LaserGlx2 + right.LaserGlx2,
+            LaserBlx3 = left.LaserBlx3 + right.LaserBlx3,
+            LaserWlx4 = left.LaserWlx4 + right.LaserWlx4,
+            LaserGlx2As = left.LaserGlx2As + right.LaserGlx2As,
+            LaserMrs6X = left.LaserMrs6X + right.LaserMrs6X,
+            RocketKep410 = left.RocketKep410 + right.RocketKep410,
+            RocketNc30 = left.RocketNc30 + right.RocketNc30,
+            RocketTnc130 = left.RocketTnc130 + right.RocketTnc130,
+            EnergyEe = left.EnergyEe + right.EnergyEe,
+            EnergyEn = left.EnergyEn + right.EnergyEn,
+            EnergyEg = left.EnergyEg + right.EnergyEg,
+            EnergyEm = left.EnergyEm + right.EnergyEm,
+        };
+    }
+
+    private static void AddInventoryStats(InventoryStatsSnapshot target, InventoryStatsSnapshot? delta)
+    {
+        if (delta is null)
+        {
+            return;
+        }
+
+        target.Plt += delta.Plt;
+        target.Btc += delta.Btc;
+        target.Experience += delta.Experience;
+        target.Honor += delta.Honor;
+        target.LaserRlx1 += delta.LaserRlx1;
+        target.LaserGlx2 += delta.LaserGlx2;
+        target.LaserBlx3 += delta.LaserBlx3;
+        target.LaserWlx4 += delta.LaserWlx4;
+        target.LaserGlx2As += delta.LaserGlx2As;
+        target.LaserMrs6X += delta.LaserMrs6X;
+        target.RocketKep410 += delta.RocketKep410;
+        target.RocketNc30 += delta.RocketNc30;
+        target.RocketTnc130 += delta.RocketTnc130;
+        target.EnergyEe += delta.EnergyEe;
+        target.EnergyEn += delta.EnergyEn;
+        target.EnergyEg += delta.EnergyEg;
+        target.EnergyEm += delta.EnergyEm;
+    }
+
     private void UpdateStatsRow(string key, long session, long total)
     {
         if (_statsRows.TryGetValue(key, out var row))
@@ -721,6 +998,7 @@ public sealed class MainViewModel : ViewModelBase, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _manualShutdownRequested = true;
         ProfileEditor.Dispose();
         _session.Dispose();
     }

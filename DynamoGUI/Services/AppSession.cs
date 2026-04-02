@@ -1,4 +1,5 @@
 using System;
+using DynamoGUI.Models;
 
 namespace DynamoGUI.Services;
 
@@ -8,6 +9,7 @@ public sealed class AppSession : IDisposable
 
     public BackendService Backend { get; }
     public IpcClient Ipc { get; }
+    public BackendConnectRequest? LastConnectRequest { get; set; }
 
     public string PipeName => Ipc.PipeName;
 

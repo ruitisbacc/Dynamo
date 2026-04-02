@@ -657,9 +657,11 @@ private:
     [[nodiscard]] bool handleDeathsAndRevive(const GameSnapshot& snap, const BotConfig& runtime) {
         const bool deadNow = engine_->isDead();
         const int64_t now = snap.timestampMs;
+        bool justRevived = false;
 
         if (!deadNow && reviveEventPending_.exchange(false)) {
             confirmSafetyAfterRevive(now);
+            justRevived = true;
         }
 
         // Process deferred immediate-death signal from engine callback thread
@@ -728,6 +730,13 @@ private:
                 engine_->revive();
                 nextReviveAttemptAtMs_ = now + std::max<int32_t>(500, runtime.revive.waitAfterReviveMs);
             }
+        }
+
+        // Skip module tick on the revive frame — the hero snapshot still
+        // contains the pre-death position so any moveTo would fly the ship
+        // back to the old flee target instead of staying at the spawn point.
+        if (justRevived) {
+            return true;
         }
 
         return deadNow;

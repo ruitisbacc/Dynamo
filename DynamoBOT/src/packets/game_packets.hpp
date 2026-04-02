@@ -862,18 +862,21 @@ struct UserInfoResponsePacket : public ISerializable {
 };
 
 // MessageResponsePacket - system/chat messages
-// Alphabetical: msg (String), msgId (int)
+// Alphabetical: msg (String, nullable), msgId (int)
 struct MessageResponsePacket : public ISerializable {
     int32_t msgId{0};
     std::string msg;
+    bool hasMsg{false};
 
     void serialize(KryoBuffer& buf) const override {
-        buf.writeString(msg);
+        buf.writeStringOrNull(hasMsg ? &msg : nullptr);
         buf.writeKryoInt(msgId);
     }
 
     void deserialize(KryoBuffer& buf) override {
-        msg = buf.readString();
+        bool isNull = false;
+        msg = buf.readStringOrNull(isNull);
+        hasMsg = !isNull;
         msgId = buf.readKryoInt();
     }
 };

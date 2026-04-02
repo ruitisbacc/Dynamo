@@ -213,6 +213,13 @@ public partial class LoginViewModel : ViewModelBase
             }
 
             connectAccepted = true;
+            Session.LastConnectRequest = new BackendConnectRequest
+            {
+                Username = request.Username,
+                Password = request.Password,
+                ServerId = request.ServerId,
+                Language = request.Language,
+            };
             StatusText = "Waiting for engine...";
             var completed = await Task.WhenAny(
                 reachedLiveState.Task,
