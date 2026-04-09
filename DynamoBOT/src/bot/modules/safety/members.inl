@@ -6,6 +6,12 @@
     Navigation navigation_;
     SafetyState state_{SafetyState::Monitoring};
 
+    struct RepairConfigShieldObservation {
+        bool observed{false};
+        int32_t shield{0};
+        int32_t maxShield{0};
+    };
+
     int64_t lastMoveTime_{0};
     int64_t lastConfigSwitchTime_{0};
     int64_t lastProgressTime_{0};
@@ -17,6 +23,7 @@
     int32_t fleeRetargetCount_{0};
     std::optional<RepairAnchor> repairAnchor_;
     bool repairHoldIssued_{false};
+    std::array<RepairConfigShieldObservation, 2> repairConfigShieldStates_{};
     int64_t reviveGraceUntilMs_{0};
     std::string teleportFromMap_;      // Map name when teleport was sent
     int64_t teleportSentAtMs_{0};      // When teleport packet was sent

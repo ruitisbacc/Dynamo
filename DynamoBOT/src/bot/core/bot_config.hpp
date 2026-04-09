@@ -36,21 +36,11 @@ NLOHMANN_JSON_SERIALIZE_ENUM(BotMode, {
  * @brief Combat movement mode for NPC fights
  */
 enum class CombatMovementMode {
-    Default,        // Inherit from global combat config
     Adaptive,       // Pursuit + orbit + kite depending on range
-    Direct,         // Mostly hold a stable attack range
-    Orbit,          // Circle around target whenever possible
-    Kite,           // Keep drifting away while attacking
-    Mixed           // Blend orbit and kite patterns
 };
 
 NLOHMANN_JSON_SERIALIZE_ENUM(CombatMovementMode, {
-    {CombatMovementMode::Default, "Default"},
     {CombatMovementMode::Adaptive, "Adaptive"},
-    {CombatMovementMode::Direct, "Direct"},
-    {CombatMovementMode::Orbit, "Orbit"},
-    {CombatMovementMode::Kite, "Kite"},
-    {CombatMovementMode::Mixed, "Mixed"}
 })
 
 enum class SafetyFleeMode {
@@ -198,7 +188,6 @@ struct SafetyConfig {
     
     // Escape settings
     bool preferPortalEscape{true};      // Prefer portals over random flee
-    bool jumpWhenAtPortal{false};       // Auto-jump when reaching portal
     int32_t fleeMoveCooldownMs{200};
     int32_t adminEscapeDelayMs{300000}; // Stay defensive after admin seen (5 min)
     
@@ -210,7 +199,7 @@ struct SafetyConfig {
     
     int32_t priority{90};               // Module priority when active
 };
-NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SafetyConfig, enabled, minHpPercent, repairHpPercent, fullHpPercent, fleeMode, enemySeenTimeoutMs, preferPortalEscape, jumpWhenAtPortal, fleeMoveCooldownMs, adminEscapeDelayMs, useEscapeConfig, escapeConfigId, fightConfigId, configSwitchCooldownMs, priority)
+NLOHMANN_DEFINE_TYPE_NON_INTRUSIVE_WITH_DEFAULT(SafetyConfig, enabled, minHpPercent, repairHpPercent, fullHpPercent, fleeMode, enemySeenTimeoutMs, preferPortalEscape, fleeMoveCooldownMs, adminEscapeDelayMs, useEscapeConfig, escapeConfigId, fightConfigId, configSwitchCooldownMs, priority)
 
 /**
  * @brief Combat module configuration

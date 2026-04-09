@@ -158,11 +158,6 @@
     [[nodiscard]] static std::string_view movementModeName(CombatMovementMode mode) {
         switch (mode) {
             case CombatMovementMode::Adaptive: return "Adaptive";
-            case CombatMovementMode::Direct:
-            case CombatMovementMode::Orbit:
-            case CombatMovementMode::Kite:
-            case CombatMovementMode::Mixed:
-            case CombatMovementMode::Default:
             default:
                 return "Adaptive";
         }

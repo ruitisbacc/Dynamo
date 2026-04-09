@@ -759,7 +759,6 @@ BotConfig ConfigService::resolveRuntimeConfig(const BotProfile& profile) {
     runtime.safety.fleeMode = profile.safety.fleeMode;
     runtime.safety.enemySeenTimeoutMs = 15000;
     runtime.safety.preferPortalEscape = true;
-    runtime.safety.jumpWhenAtPortal = false;
     runtime.safety.fleeMoveCooldownMs = 200;
     runtime.safety.adminEscapeDelayMs = profile.adminDisconnect.cooldownMinutes * 60 * 1000;
     runtime.safety.useEscapeConfig = true;

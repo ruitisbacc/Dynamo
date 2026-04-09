@@ -23,9 +23,15 @@ namespace dynamo {
 namespace detail {
 
 inline bool isKnownAdminName(std::string_view username) {
-    return username == "Curunir" ||
+    return username == "Zaczarowana" ||
+           username == "Dayn" ||
+           username == "Curunir" ||
            username == "Vicc" ||
-           username == "Dayn";
+           username == "Serendipity" ||
+           username == "Kub" ||
+           username == "B4ron" ||
+           username == "Exynos" ||
+           username == "Gaia";
 }
 
 } // namespace detail

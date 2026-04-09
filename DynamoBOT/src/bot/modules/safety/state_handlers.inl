@@ -39,6 +39,7 @@
             movement_->release(name());
         }
         repairHoldIssued_ = false;
+        resetRepairShieldTracking();
 
         if (config_.useEscapeConfig && snap.hero.activeConfig != config_.escapeConfigId) {
             switchConfig(config_.escapeConfigId);
@@ -324,22 +325,8 @@
         const auto assessment = assessEnemyFlee(snap, summary);
         const auto now = snap.timestampMs;
         const Position heroPos(snap.hero.x, snap.hero.y);
-
-        if (hpPercent >= config_.fullHpPercent) {
-            if (movement_) {
-                movement_->release(name());
-            }
-            clearRepairAnchor();
-            transitionTo(SafetyState::Monitoring, snap.timestampMs);
-            std::cout << "[Safety] Repair complete (" << hpPercent << "%)\n";
-
-            if (config_.useEscapeConfig && snap.hero.activeConfig != config_.fightConfigId) {
-                switchConfig(config_.fightConfigId);
-            }
-
-            publishTelemetry(snap, summary, "RepairComplete");
-            return;
-        }
+        observeRepairShieldState(snap);
+        const bool hpRepaired = hpPercent >= config_.fullHpPercent;
 
         if (assessment.active &&
             !(reviveGraceUntilMs_ > 0 && now < reviveGraceUntilMs_)) {
@@ -348,7 +335,9 @@
             return;
         }
 
-        if (config_.useEscapeConfig && snap.hero.activeConfig != config_.escapeConfigId) {
+        if (!hpRepaired &&
+            config_.useEscapeConfig &&
+            snap.hero.activeConfig != config_.escapeConfigId) {
             switchConfig(config_.escapeConfigId);
         }
 
@@ -441,17 +430,49 @@
             lastMoveTime_ = now;
         }
 
+        if (!hpRepaired) {
+            publishTelemetry(
+                snap,
+                summary,
+                snap.inSafeZone ? "RepairSafeZone" : "RepairHoldingAnchor"
+            );
+            return;
+        }
+
+        if (const auto nextConfigId = nextRepairShieldConfig(snap.hero.activeConfig);
+            nextConfigId.has_value()) {
+            if (*nextConfigId != snap.hero.activeConfig) {
+                switchConfig(*nextConfigId);
+                publishTelemetry(snap, summary, "RepairSwitchConfig");
+                return;
+            }
+
+            publishTelemetry(snap, summary, "RepairShieldRecovering");
+            return;
+        }
+
+        if (areAllRepairShieldsComplete()) {
+            if (movement_) {
+                movement_->release(name());
+            }
+            clearRepairAnchor();
+            transitionTo(SafetyState::Monitoring, snap.timestampMs);
+            std::cout << "[Safety] Repair complete (" << hpPercent
+                      << "%, shields repaired on both configs)\n";
+
+            if (config_.useEscapeConfig && snap.hero.activeConfig != config_.fightConfigId) {
+                switchConfig(config_.fightConfigId);
+            }
+
+            publishTelemetry(snap, summary, "RepairComplete");
+            return;
+        }
+
         publishTelemetry(
             snap,
             summary,
             snap.inSafeZone ? "RepairSafeZone" : "RepairHoldingAnchor"
         );
-    }
-
-    void handleConfigSwitching(const GameSnapshot& snap,
-                               const ThreatSummary& summary) {
-        transitionTo(SafetyState::Monitoring, snap.timestampMs);
-        publishTelemetry(snap, summary, "ConfigSwitch");
     }
 
     void switchConfig(int32_t configId) {

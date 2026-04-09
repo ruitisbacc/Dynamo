@@ -37,6 +37,69 @@
         return (static_cast<double>(snap.hero.health) / snap.hero.maxHealth) * 100.0;
     }
 
+    [[nodiscard]] static bool isRepairConfigId(int32_t configId) {
+        return configId == 1 || configId == 2;
+    }
+
+    [[nodiscard]] static size_t repairConfigIndex(int32_t configId) {
+        return configId == 2 ? 1u : 0u;
+    }
+
+    void resetRepairShieldTracking() {
+        for (auto& state : repairConfigShieldStates_) {
+            state = RepairConfigShieldObservation{};
+        }
+    }
+
+    void observeRepairShieldState(const GameSnapshot& snap) {
+        if (!isRepairConfigId(snap.hero.activeConfig)) {
+            return;
+        }
+
+        auto& state = repairConfigShieldStates_[repairConfigIndex(snap.hero.activeConfig)];
+        state.observed = true;
+        state.shield = std::max(snap.hero.shield, 0);
+        state.maxShield = std::max(snap.hero.maxShield, 0);
+    }
+
+    [[nodiscard]] const RepairConfigShieldObservation* repairShieldObservationFor(int32_t configId) const {
+        if (!isRepairConfigId(configId)) {
+            return nullptr;
+        }
+        return &repairConfigShieldStates_[repairConfigIndex(configId)];
+    }
+
+    [[nodiscard]] bool isRepairShieldComplete(int32_t configId) const {
+        const auto* state = repairShieldObservationFor(configId);
+        if (state == nullptr || !state->observed) {
+            return false;
+        }
+        if (state->maxShield <= 0) {
+            return true;
+        }
+        return state->shield >= state->maxShield;
+    }
+
+    [[nodiscard]] std::optional<int32_t> nextRepairShieldConfig(int32_t activeConfigId) const {
+        const int32_t currentConfigId = isRepairConfigId(activeConfigId) ? activeConfigId : 1;
+        const int32_t otherConfigId = currentConfigId == 1 ? 2 : 1;
+
+        if (!isRepairShieldComplete(currentConfigId)) {
+            return currentConfigId;
+        }
+
+        const auto* otherState = repairShieldObservationFor(otherConfigId);
+        if (otherState == nullptr || !otherState->observed || !isRepairShieldComplete(otherConfigId)) {
+            return otherConfigId;
+        }
+
+        return std::nullopt;
+    }
+
+    [[nodiscard]] bool areAllRepairShieldsComplete() const {
+        return isRepairShieldComplete(1) && isRepairShieldComplete(2);
+    }
+
     [[nodiscard]] static double distanceToSegment(const Position& point,
                                                   const Position& segmentStart,
                                                   const Position& segmentEnd) {

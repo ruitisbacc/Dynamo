@@ -848,15 +848,7 @@ BackendStatusSnapshot BackendHost::buildStatusSnapshot() {
     if (const auto combat = bot_->getCombatTelemetry(); combat.has_value()) {
         snapshot.combatState = toCombatStateString(combat->state);
         snapshot.combatDecision = combat->movementDecision.empty() ? "-" : combat->movementDecision;
-        snapshot.combatMovement = "-";
-        switch (combat->movementMode) {
-            case CombatMovementMode::Default: snapshot.combatMovement = "Default"; break;
-            case CombatMovementMode::Adaptive: snapshot.combatMovement = "Adaptive"; break;
-            case CombatMovementMode::Direct: snapshot.combatMovement = "Direct"; break;
-            case CombatMovementMode::Orbit: snapshot.combatMovement = "Orbit"; break;
-            case CombatMovementMode::Kite: snapshot.combatMovement = "Kite"; break;
-            case CombatMovementMode::Mixed: snapshot.combatMovement = "Mixed"; break;
-        }
+        snapshot.combatMovement = "Adaptive";
     }
 
     if (const auto travel = bot_->getTravelTelemetry(); travel.has_value()) {

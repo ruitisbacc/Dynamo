@@ -80,6 +80,7 @@
         lastProgressTime_ = 0;
         fleeRetargetCount_ = 0;
         clearRepairAnchor();
+        resetRepairShieldTracking();
         {
             std::lock_guard<std::mutex> lock(telemetryMutex_);
             telemetry_ = SafetyTelemetry{};
@@ -96,6 +97,7 @@
         clearEscapeAnchor();
         lastFleeDistance_ = std::numeric_limits<double>::max();
         clearRepairAnchor();
+        resetRepairShieldTracking();
         publishTelemetry(GameSnapshot{}, ThreatSummary{}, "Stopped");
         std::cout << "[Safety] Module deactivated\n";
     }
@@ -130,10 +132,6 @@
             case SafetyState::Repairing:
                 handleRepairing(snap, hpPercent, summary);
                 break;
-
-            case SafetyState::ConfigSwitching:
-                handleConfigSwitching(snap, summary);
-                break;
         }
     }
 
@@ -156,6 +154,7 @@
         transitionTo(SafetyState::Repairing, nowMs);
         reviveGraceUntilMs_ = nowMs + REVIVE_GRACE_PERIOD_MS;
         repairHoldIssued_ = false;
+        resetRepairShieldTracking();
         clearEscapeAnchor();
         fleeTarget_ = Position{};
         lastFleeDistance_ = std::numeric_limits<double>::max();
@@ -180,6 +179,7 @@
         transitionTo(SafetyState::Repairing, nowMs);
         reviveGraceUntilMs_ = nowMs + REVIVE_GRACE_PERIOD_MS;
         repairHoldIssued_ = false;
+        resetRepairShieldTracking();
         clearEscapeAnchor();
         clearRepairAnchor();
         fleeTarget_ = Position{};

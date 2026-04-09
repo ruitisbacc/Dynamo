@@ -150,6 +150,23 @@ namespace dynamo
             }
         }
 
+        int32_t extractDroneCount(const ChangedParameterValue &value)
+        {
+            if (std::holds_alternative<std::monostate>(value))
+            {
+                return 0;
+            }
+            if (const auto *flat = std::get_if<std::vector<int32_t>>(&value))
+            {
+                return static_cast<int32_t>(flat->size());
+            }
+            if (const auto *matrix = std::get_if<std::vector<std::vector<int32_t>>>(&value))
+            {
+                return static_cast<int32_t>(matrix->size());
+            }
+            return 0;
+        }
+
         bool parseIntArrayJson(const std::string &data, std::array<int32_t, 4> &outValues)
         {
             try
@@ -2197,8 +2214,7 @@ namespace dynamo
         // comparison later when building the public snapshot.
         ship.isEnemy = clanRelation == 2;
         ship.isAlly = clanRelation == 1;
-        
-        for (const auto& change : changes) {
+        for (const auto &change : changes) {
             switch (change.id) {
                 case ParamId::USERNAME:
                     if (auto* s = std::get_if<std::string>(&change.data)) {
@@ -2323,9 +2339,7 @@ namespace dynamo
                     break;
 
                 case ParamId::DRONES:
-                    if (auto* arr = std::get_if<std::vector<int32_t>>(&change.data)) {
-                        ship.droneCount = static_cast<int32_t>(arr->size());
-                    }
+                    ship.droneCount = extractDroneCount(change.data);
                     break;
                     
                 case ParamId::CARGO:

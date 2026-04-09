@@ -15,6 +15,7 @@
 #include "game/game_engine.hpp"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cmath>
 #include <iostream>

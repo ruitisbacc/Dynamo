@@ -6,8 +6,7 @@ enum class SafetyState {
     Fleeing,            // Running away from danger
     AtPortal,           // Reached escape portal
     AwaitingTeleport,   // Teleport sent, waiting for map change
-    Repairing,          // Low HP, waiting to repair
-    ConfigSwitching     // Switching ship config
+    Repairing           // Low HP, waiting to repair
 };
 
 enum class RepairAnchorKind {
